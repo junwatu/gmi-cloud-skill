@@ -1,6 +1,6 @@
 # GMI Cloud skill — Public Beta
 
-**Status: Public beta (`v0.1.0-beta.6`).** APIs and workflows may change.
+**Status: Public beta (`v0.1.0-beta.7`).** APIs and workflows may change.
 Report reproducible issues in the [issue tracker](https://github.com/junwatu/gmi-cloud-skill/issues).
 
 Use GMI Cloud from Codex to discover documented and account-listed models, run
@@ -9,6 +9,33 @@ or audio generation. Media jobs are saved locally so you can check their status,
 resume waiting, and download results later.
 
 The helper calls GMI's HTTP APIs directly.
+
+## Approval before spending
+
+Before any action that may incur a charge:
+
+1. Prepare the exact model, parameters, and number of outputs.
+2. Show the estimated total cost in USD and how it was calculated.
+3. Ask for explicit user approval and wait for the reply.
+4. Submit only the approved work, once.
+
+If pricing is unknown, disclose that and request approval before submitting.
+Any change that increases the approved cost requires new approval.
+Never treat model discovery, payload preparation, or a general request
+to generate as spending approval.
+
+Read-only catalog, pricing, and status checks may proceed without approval
+when those operations are free.
+
+
+This applies to text inference, media generation and any other potentially billed
+operation. A request such as "generate a video" starts preparation and quoting;
+it does not authorize submitting a paid request. Approval covers the displayed
+model, parameters, output count and cost estimate (or the disclosed unknown price).
+
+This is a skill instruction for the agent. Direct manual helper commands do not
+implement an interactive approval gate; run billed commands only after reviewing
+and approving the work yourself.
 
 ## Requirements
 
@@ -31,7 +58,7 @@ was verified on macOS using a trusted CA bundle.
 
 ## Install in Codex
 
-1. Download [`gmi-cloud.zip`](https://github.com/junwatu/gmi-cloud-skill/releases/tag/v0.1.0-beta.6) and extract it. The resulting `gmi-cloud` folder must
+1. Download [`gmi-cloud.zip`](https://github.com/junwatu/gmi-cloud-skill/releases/tag/v0.1.0-beta.7) and extract it. The resulting `gmi-cloud` folder must
    contain `SKILL.md`, `scripts/`, `references/`, and `agents/`.
 2. Copy the **whole folder**, not only `SKILL.md`, into your user skills folder:
 
@@ -80,7 +107,7 @@ Ask Codex to install the public beta using the built-in skill installer:
 
 ```text
 Use $skill-installer to install gmi-cloud from
-https://github.com/junwatu/gmi-cloud-skill/tree/v0.1.0-beta.6/skills/gmi-cloud
+https://github.com/junwatu/gmi-cloud-skill/tree/v0.1.0-beta.7/skills/gmi-cloud
 ```
 
 The URL points directly to the skill folder and pins the beta release.
@@ -246,11 +273,14 @@ Use $gmi-cloud to generate a video with MODEL_ID using this prompt: ...
 Use $gmi-cloud to check my saved media jobs and resume waiting for scene-01.
 ```
 
-The agent inspects the chosen model's current schema before submitting. Listing
-models or designing a workflow does not submit a paid generation.
+The agent inspects the chosen model's current schema, prepares the exact request
+and cost estimate, and asks for explicit spending approval before submission.
+Listing models, preparing a payload, or asking to generate does not authorize spend.
 
 For manual media operation, run these commands from the installed skill folder.
-Replace `MODEL_ID`, and create UTF-8 `payload.json` using that model's schema:
+Replace `MODEL_ID`, and create UTF-8 `payload.json` using that model's schema.
+Review the model, parameters, output count and pricing before running `submit`;
+the manual helper submits directly without an approval prompt:
 
 ```sh
 python3 scripts/gmi_api.py model MODEL_ID

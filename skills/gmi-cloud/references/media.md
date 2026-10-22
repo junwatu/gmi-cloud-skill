@@ -32,6 +32,19 @@ the input publicly accessible. The helper does not implement uploads.
 of USD per `unit`. The helper preserves raw metadata instead of assuming a
 universal conversion or comparing incomparable units. Do not invent totals.
 
+## Approval before submission
+
+Follow [Approval before spending](../SKILL.md#approval-before-spending) before
+`submit`. Prepare the exact model and payload, number of jobs and outputs, USD
+estimate and calculation from current price units/quantities. Do not assume one
+request always produces one output. Disclose unknown pricing or variable charges
+and wait for explicit approval. A generation request only authorizes preparation.
+Any change increasing the approved cost requires new approval. Submit only the
+approved work, once; uncertainty after submission is handled by reconciliation.
+
+The helper's manual `submit` command does not prompt for approval. Agents must
+complete the approval workflow before invoking it.
+
 ## Submit once, resume by ID
 
 ```sh

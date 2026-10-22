@@ -5,7 +5,7 @@
 A Codex skill for GMI Cloud model discovery from official documentation and live
 account catalogs, text inference, and resumable image, video, and audio generation. Written in Python using only the standard library.
 
-**Version: `v0.1.0-beta.6`.** Expect changes while API behavior and platform support
+**Version: `v0.1.0-beta.7`.** Expect changes while API behavior and platform support
 are validated. This is an independent community project, not an official GMI Cloud product.
 
 ## Install
@@ -14,12 +14,39 @@ Ask Codex:
 
 ```text
 Use $skill-installer to install gmi-cloud from
-https://github.com/junwatu/gmi-cloud-skill/tree/v0.1.0-beta.6/skills/gmi-cloud
+https://github.com/junwatu/gmi-cloud-skill/tree/v0.1.0-beta.7/skills/gmi-cloud
 ```
 
 Or download `gmi-cloud.zip` from the
-[beta release](https://github.com/junwatu/gmi-cloud-skill/releases/tag/v0.1.0-beta.6)
+[beta release](https://github.com/junwatu/gmi-cloud-skill/releases/tag/v0.1.0-beta.7)
 and follow the [manual installation guide](skills/gmi-cloud/README.md#install-in-codex).
+
+## Approval before spending
+
+Before any action that may incur a charge:
+
+1. Prepare the exact model, parameters, and number of outputs.
+2. Show the estimated total cost in USD and how it was calculated.
+3. Ask for explicit user approval and wait for the reply.
+4. Submit only the approved work, once.
+
+If pricing is unknown, disclose that and request approval before submitting.
+Any change that increases the approved cost requires new approval.
+Never treat model discovery, payload preparation, or a general request
+to generate as spending approval.
+
+Read-only catalog, pricing, and status checks may proceed without approval
+when those operations are free.
+
+
+This applies to text inference, media generation and any other potentially billed
+operation. A request such as "generate a video" starts preparation and quoting;
+it does not authorize submitting a paid request. Approval covers the displayed
+model, parameters, output count and cost estimate (or the disclosed unknown price).
+
+This is a skill instruction for the agent. Direct manual helper commands do not
+implement an interactive approval gate; run billed commands only after reviewing
+and approving the work yourself.
 
 ## Requirements
 

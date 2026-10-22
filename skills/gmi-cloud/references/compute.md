@@ -18,3 +18,9 @@ keys, bound readiness waits, and preserve resource IDs. Stop on platform deletio
 and report the reason. Track temporary-resource cleanup and report failures.
 Sandbox provisioning, exec and file transfer are not covered by this skill's
 offline inference/media verification.
+
+Before any potentially billed compute action, follow
+[Approval before spending](../SKILL.md#approval-before-spending): show exact
+resources/parameters, quantity, duration assumptions and total USD calculation,
+or disclose unknown costs, then wait for explicit approval. Prior approval for
+media or inference does not authorize provisioning. Increases require approval.

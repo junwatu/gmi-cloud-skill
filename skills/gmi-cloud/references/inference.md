@@ -15,6 +15,13 @@ all modalities, use plain `models`. See [catalog discovery](catalog.md) for
 source coverage, alias lookup and complete exports. A documentation-only title
 is not necessarily an executable ID: read the official quickstart to resolve it.
 
+Before running `chat`, follow [Approval before spending](../SKILL.md#approval-before-spending).
+Show the exact model, input/messages and parameters, number of requests/outputs,
+and the USD estimate with its calculation. For token billing, state input/output
+rates and estimated token counts; separate estimates from a guaranteed cap.
+If pricing or output usage is uncertain, disclose it and wait for explicit
+approval of that uncertainty. A general request for a response is not approval.
+
 `conversation.json` is a nonempty array of role/content chat messages. Prompt
 files can be passed with `--prompt-file PATH`. Exactly one input is required.
 The helper sends non-streaming `POST /v1/chat/completions` and returns its JSON.
