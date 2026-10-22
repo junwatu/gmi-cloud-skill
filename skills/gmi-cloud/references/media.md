@@ -5,32 +5,21 @@ Use `python3 <skill-dir>/scripts/gmi_api.py` below as `HELPER`.
 ## Discover and build a payload
 
 ```sh
-HELPER media-models
-HELPER catalog --kind media --search "Seedance 2.5" --details
-HELPER model MODEL_ID
+HELPER models --kind media --search "Seedance 2.5" --details
+HELPER model EXACT_MODEL_ID
 ```
 
-The list endpoint returns IDs, including potentially inactive/internal entries.
-Inspect details of plausible models; do not present the raw list as curated.
-Details include `parameters`, `modalities`, `model_type`, `status`, `qworkers`,
-`model_metadata`, and `price_info` when supplied. Prefer active models with
-workers. Submission rejects explicitly inactive status or zero workers; missing
-readiness fields do not prove readiness.
+Read [catalog discovery](catalog.md). Both `models` and `catalog` combine public
+model documentation with live API listings. Exact IDs and aliases are dynamic;
+no model family is excluded by a hard-coded list. Documentation-only offerings
+remain visible, with links to resolve their IDs and endpoint requirements.
 
-Use `catalog` for a combined live text/media inventory. `--search` matches names
-without punctuation, spaces or case differences, preserving exact API IDs for
-requests. `--details` fetches readiness, modalities, status and price metadata for
-matching media entries only. Narrow the search before requesting details to avoid
-hundreds of lookups. Without details, readiness is explicitly unknown.
-
-Discovery preserves inactive and zero-worker models instead of hiding them.
-Show these when the user asks for all or a named model; explain current readiness
-separately. Do not equate zero workers with unsupported. The list is queried fresh
-on every invocation. Source or detail failures produce `complete: false`, errors,
-and exit 1 while retaining successful entries. Absence in an incomplete result
-does not establish that a model is unavailable. Returned catalogs are scoped to
-the current key/organization and do not prove every product visible in the web
-console is available through these API endpoints.
+`media-models` is the raw media-ID endpoint. Detailed responses can include
+`parameters`, modalities, `model_type`, `status`, `qworkers`, `model_metadata`, and
+`price_info`. Worker/status metadata is reported separately from model discovery.
+The helper does not block an authorized submission because of `qworkers == 0`
+or a status snapshot; the official submit API decides acceptance. With zero
+workers, queue duration is unknown. Do not promise immediate generation.
 
 Write `payload.json` from the chosen model's schema. Names differ by model:
 `prompt`, `text`, `lyrics`, `duration`, `durationSeconds`, etc. The helper checks
@@ -80,7 +69,7 @@ malformed responses and unknown statuses stop. No daemon or cancellation exists.
 | 3 | Job pending or wait elapsed | Resume the same ID |
 | 130 | Local wait interrupted | Remote job may continue |
 
-Pending: `queued`, `pending`, `dispatched`, `processing`, `running`, `in_progress`.
+Pending: `created`, `queued`, `pending`, `dispatched`, `processing`, `running`, `in_progress`.
 Success: `success`, `completed`, `succeeded`.
 Failure: `failed`, `error`, `cancelled`, `canceled`, `expired`, `rejected`.
 Unknown states are preserved and return an error, avoiding indefinite polling.
@@ -120,10 +109,10 @@ prompts/payloads are persisted. Result metadata and signed URLs are private.
 State belongs to its machine/directory and original GMI account/organization;
 resume using the corresponding credentials.
 
-Sources consulted 2026-10-23:
+Sources reviewed 2026-10-23:
 - [GMI media/video API](https://docs.gmicloud.ai/inference-engine/api-reference/video-api-reference): queue, schemas, polling, artifacts.
 - [GMI rate limits](https://docs.gmicloud.ai/inference-engine/api-reference/rate-limit).
-- [Community snapshot](https://github.com/zkasuran/gmi/tree/e1fd7116fad2113730b8b8df947e16b2741a81bb): additional observed readiness fields/media shapes, not API guarantees.
+- [GMI video SDK reference](https://docs.gmicloud.ai/inference-engine/api-reference/video-sdk-reference): the documented `created` request state is treated as pending. Worker metadata observed from the API is not an official admission rule.
 
 Catalog listing and selected readiness metadata were verified live. Job lifecycle
 and downloads were validated with local HTTP fixtures; paid generation remains

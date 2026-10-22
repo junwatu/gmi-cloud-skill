@@ -3,28 +3,31 @@
 Use `python3 <skill-dir>/scripts/gmi_api.py` below as `HELPER`.
 
 ```sh
-HELPER catalog
-HELPER catalog --kind text --search "MODEL NAME"
-HELPER models
-HELPER chat --model MODEL_ID --prompt 'Explain this error' --max-tokens 512
-HELPER chat --model MODEL_ID --messages-file conversation.json --max-tokens 512
+HELPER models --kind text
+HELPER text-models
+HELPER chat --model EXACT_API_ID --prompt 'Explain this error' --max-tokens 512
+HELPER chat --model EXACT_API_ID --messages-file conversation.json --max-tokens 512
 ```
 
-`conversation.json` is a JSON array of chat messages. Prompt files can be passed
-with `--prompt-file PATH`. Exactly one input is required. The helper sends
-non-streaming `POST /v1/chat/completions` and returns the response as JSON.
-It never retries paid POSTs. Read-only discovery retries transient failures
-at most twice. No model is hard-coded as a default.
+`models --kind text` combines current official text quickstarts and the account's
+inference listing. `text-models` returns the raw inference endpoint JSON. For
+all modalities, use plain `models`. See [catalog discovery](catalog.md) for
+source coverage, alias lookup and complete exports. A documentation-only title
+is not necessarily an executable ID: read the official quickstart to resolve it.
 
-Credentials are `GMI_API_KEY` and optional `GMI_ORG_ID`. API requests use explicit
-User-Agent and bearer auth over HTTPS. API redirects are rejected so credentials
-cannot follow redirects. Errors redact the current key and credential fields.
-Do not echo keys from shell environment tools.
+`conversation.json` is a nonempty array of role/content chat messages. Prompt
+files can be passed with `--prompt-file PATH`. Exactly one input is required.
+The helper sends non-streaming `POST /v1/chat/completions` and returns its JSON.
+It never retries paid POSTs. Read-only API discovery retries transient failures
+at most twice. There is no hard-coded default model or allowed-model list.
+
+Use `GMI_API_KEY` and optional `GMI_ORG_ID`. API requests use explicit User-Agent,
+bearer auth, and HTTPS; API redirects are rejected. Errors redact known secrets
+and credential fields. Never print the shell environment to diagnose credentials.
+Public documentation discovery remains available without an API key; text
+inference and raw account listings require one.
 
 Source: [GMI LLM reference](https://docs.gmicloud.ai/inference-engine/api-reference/llm-api-reference),
-consulted 2026-10-23. Check current docs when models reject parameters. Read-only model discovery was verified on macOS with a trusted CA bundle.
-Live text generation remains unverified.
-
-`models` returns only the inference endpoint catalog. For all currently listed
-text and media entries, use `catalog`. It fetches both sources on every call and
-reports source counts and errors. Listing order is not a release-date ranking.
+reviewed 2026-10-23. Check current per-model docs when parameters are rejected.
+Read-only discovery was verified live with a trusted CA bundle; paid text
+inference remains unverified by this skill's tests.

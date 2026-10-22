@@ -22,7 +22,8 @@ from uuid import uuid4
 
 INFERENCE = 'https://api.gmi-serving.com/v1'
 MEDIA = 'https://console.gmicloud.ai/api/v1/ie/requestqueue/apikey'
-PENDING = {'queued', 'pending', 'dispatched', 'processing', 'running', 'in_progress'}
+DOCS_INDEX = 'https://docs.gmicloud.ai/llms.txt'
+PENDING = {'created', 'queued', 'pending', 'dispatched', 'processing', 'running', 'in_progress'}
 SUCCESS = {'success', 'completed', 'succeeded'}
 FAILURE = {'failed', 'error', 'cancelled', 'canceled', 'expired', 'rejected'}
 TRANSIENT = {408, 429, 500, 502, 503, 504}
@@ -140,7 +141,7 @@ class API:
     def __init__(self):
         self.key = os.environ.get('GMI_API_KEY', '').strip()
         if not self.key:
-            raise Error('Set GMI_API_KEY in the execution environment; do not paste it into chat.')
+            raise Error('Set GMI_API_KEY in the execution environment; do not paste it into chat.', code='MISSING_API_KEY')
         self.opener = build_opener(NoRedirect(), HTTPSHandler(context=tls_context()))
 
     def call(self, method, base, path, body=None, timeout=30):
@@ -202,45 +203,131 @@ def unwrap(value):
     return value['data'] if isinstance(value.get('data'), dict) else value
 
 
+def normalize_name(value):
+    return re.sub(r'[^a-z0-9]', '', str(value or '').casefold())
+
+
 def model_matches(record, search):
-    """Compare names without punctuation/spacing; retain exact IDs for requests."""
-    normalize = lambda s: re.sub(r'[^a-z0-9]', '', str(s).casefold())
-    query = normalize(search)
-    return not query or any(query in normalize(record.get(key, ''))
-                            for key in ('id', 'model', 'name', 'display_name'))
+    """Search current IDs and documented names without a hard-coded alias list."""
+    query = normalize_name(search)
+    names = [record.get(key) for key in ('id', 'model', 'name', 'display_name', 'doc_slug')]
+    names.extend(record.get('aliases', []))
+    return not query or any(query in normalize_name(value) for value in names)
 
 
-def catalog(api, kind='all', search='', details=False):
-    """Fresh discovery across both catalogs. Never filter out unavailable entries."""
-    records, errors, counts = [], [], {}
-    if kind in ('all', 'text'):
+def fetch_docs_index():
+    # Public documentation never receives API or organization credentials.
+    opener = build_opener(NoRedirect(), HTTPSHandler(context=tls_context()))
+    request = Request(DOCS_INDEX, headers={'User-Agent': 'gmi-skill/1.0', 'Accept': 'text/plain'})
+    try:
+        with opener.open(request, timeout=30) as response:
+            raw = response.read(4 * 1024 * 1024 + 1)
+        if len(raw) > 4 * 1024 * 1024:
+            raise Error('Official documentation index exceeds 4 MiB.')
+        return raw.decode('utf-8-sig')
+    except (ssl.SSLCertVerificationError, URLError) as exc:
+        if isinstance(exc, HTTPError):
+            code = exc.code
+            exc.close()
+            raise Error(f'Official documentation index HTTP {code}.') from None
+        reason = exc.reason if isinstance(exc, URLError) else exc
+        if isinstance(reason, ssl.SSLCertVerificationError):
+            raise tls_error() from None
+        raise Error('Official documentation index connection failed.') from None
+    except (OSError, HTTPException, UnicodeError):
+        raise Error('Cannot read the official documentation index.') from None
+
+
+def documented_models(index):
+    records, seen = [], set()
+    for title, url in re.findall(r'\[([^\]\n]+)\]\((https://[^)\s]+)\)', index):
+        parsed = urlsplit(url)
+        match = re.fullmatch(r'/model-quickstarts/([^/]+)/([^/]+?)(?:\.md)?', parsed.path)
+        if parsed.hostname != 'docs.gmicloud.ai' or not match:
+            continue
+        category, slug = match.groups()
+        if slug in {'about', 'index'} or url in seen:
+            continue
+        seen.add(url)
+        records.append({'id': None, 'name': title, 'doc_slug': slug, 'category': category,
+                        'source': 'documentation', 'listed': False, 'documented': True,
+                        'api_listing': 'unknown', 'readiness': 'unknown',
+                        'documentation': [{'title': title, 'url': url}]})
+    if not records:
+        raise Error('Official documentation index has no recognizable model entries; discovery is incomplete.')
+    return records
+
+
+def catalog(api, kind='all', search='', details=False, include_docs=True, api_error=None):
+    """Union account catalogs with official documentation; keep coverage explicit."""
+    records, errors, counts, successful, warnings = [], [], {}, set(), []
+    def failure(source, exc):
+        errors.append({'source': source, 'error': str(exc), 'code': exc.code})
+    for source, base in (('text', INFERENCE), ('media', MEDIA)):
+        if kind not in ('all', source):
+            continue
+        if api is None:
+            failure(source, api_error or Error('Set GMI_API_KEY to check account API listings.', code='MISSING_API_KEY'))
+            continue
         try:
-            data = api.read(INFERENCE, 'models').get('data')
+            response = api.read(base, 'models')
+            data = response.get('data') if source == 'text' else response.get('model_ids')
             if not isinstance(data, list):
-                raise Error('Unexpected text model catalog shape.')
-            counts['text'] = len(data)
-            for value in data:
-                if not isinstance(value, dict) or not isinstance(value.get('id'), str):
-                    raise Error('Text catalog contains an invalid model record.')
-                record = {**value, 'source': 'text', 'listed': True}
-                if model_matches(record, search):
+                raise Error(f'Unexpected {source} catalog shape.')
+            counts[source] = len(data)
+            for item in data:
+                if source == 'text':
+                    if not isinstance(item, dict) or not isinstance(item.get('id'), str):
+                        failure(source, Error('Inference catalog contains an invalid record; remaining records were retained.',
+                                              code='CATALOG_INVALID_RECORD'))
+                        continue
+                    record = dict(item)
+                else:
+                    if not isinstance(item, str):
+                        failure(source, Error('Media catalog contains an invalid record; remaining records were retained.',
+                                              code='CATALOG_INVALID_RECORD'))
+                        continue
+                    record = {'id': item, 'readiness': 'unknown'}
+                if not record['id'].strip():
+                    warnings.append({'source': source, 'code': 'EMPTY_MODEL_ID',
+                                     'warning': 'Catalog contains an empty ID; this is not an executable model entry.'})
+                    continue
+                record.update(source=source, listed=True, api_listing='listed', documented=False)
+                if not any(r['source'] == source and r['id'] == record['id'] for r in records):
                     records.append(record)
+            # The official endpoints are unpaginated. Fail visibly if that changes.
+            if any(response.get(key) for key in ('has_more', 'next_page', 'next_cursor', 'next')):
+                raise Error('Catalog reports additional pages; coverage is incomplete. Check current API pagination docs.',
+                            code='CATALOG_INCOMPLETE')
+            if not any(error['source'] == source for error in errors):
+                successful.add(source)
         except Error as exc:
-            errors.append({'source': 'text', 'error': str(exc), 'code': exc.code})
-    if kind in ('all', 'media'):
+            failure(source, exc)
+    if include_docs:
         try:
-            ids = api.read(MEDIA, 'models').get('model_ids')
-            if not isinstance(ids, list) or any(not isinstance(x, str) for x in ids):
-                raise Error('Unexpected media model catalog shape.')
-            counts['media'] = len(ids)
-            for model_id in dict.fromkeys(ids):
-                record = {'id': model_id, 'source': 'media', 'listed': True,
-                          'readiness': 'unknown'}
-                if model_matches(record, search):
-                    records.append(record)
+            documented = documented_models(fetch_docs_index())
+            counts['documentation'] = len(documented)
+            for doc in documented:
+                source = 'text' if doc['category'] == 'text' else 'media'
+                if kind not in ('all', source):
+                    continue
+                keys = {normalize_name(doc['name']), normalize_name(doc['doc_slug'])}
+                matches = [r for r in records if r['source'] == source and normalize_name(r['id']) in keys]
+                if len(matches) == 1:
+                    match = matches[0]
+                    match['documented'] = True
+                    match.setdefault('documentation', []).extend(doc['documentation'])
+                    match.setdefault('aliases', []).extend([doc['name'], doc['doc_slug']])
+                    match.setdefault('category', doc['category'])
+                else:
+                    doc['api_listing'] = 'not_returned' if source in successful else 'unknown'
+                    records.append(doc)
+            successful.add('documentation')
         except Error as exc:
-            errors.append({'source': 'media', 'error': str(exc), 'code': exc.code})
-    if details:
+            failure('documentation', exc)
+    # Search AFTER merging documented names. Never silently cap the result set.
+    records = [record for record in records if model_matches(record, search)]
+    if details and api is not None:
         for record in records:
             if record['source'] != 'media':
                 continue
@@ -252,20 +339,37 @@ def catalog(api, kind='all', search='', details=False):
                         record[key] = data[key]
                 status, workers = data.get('status'), data.get('qworkers')
                 if status is not None and status != 'active':
-                    record['readiness'] = 'unavailable'
+                    record['readiness'] = 'inactive_reported'
                 elif workers is not None:
-                    if int(workers) <= 0:
-                        record['readiness'] = 'no_workers'
-                    elif status == 'active':
-                        record['readiness'] = 'ready'
+                    record['readiness'] = 'no_workers_reported' if int(workers) <= 0 else 'workers_reported'
+                # Worker counts are telemetry, not a documented admission policy.
             except (Error, ValueError, TypeError) as exc:
-                message = str(exc) if isinstance(exc, Error) else 'Invalid readiness metadata.'
+                message = str(exc) if isinstance(exc, Error) else 'Invalid model metadata.'
                 errors.append({'source': 'media', 'id': record['id'], 'error': message,
                                'code': getattr(exc, 'code', None)})
-    records.sort(key=lambda r: (r['source'], r['id'].casefold()))
+    records.sort(key=lambda r: (r['source'], str(r.get('id') or r.get('name') or '').casefold()))
+    requested = {source for source in ('text', 'media') if kind in ('all', source)}
+    if include_docs:
+        requested.add('documentation')
     return {'retrieved_at': now(), 'source_counts': counts, 'search': search,
+            'requested_sources': sorted(requested), 'successful_sources': sorted(successful),
+            'coverage': 'Official model documentation plus API listings for the current account; not a generation-access guarantee.',
             'models': records, 'matched': len(records), 'complete': not errors,
-            'errors': errors}
+            'errors': errors, 'warnings': warnings}
+
+
+def write_catalog(result, destination):
+    path = Path(destination).expanduser().resolve()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(dir=path.parent, prefix='.catalog-')
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+            json.dump(scrub(result), handle, ensure_ascii=True, allow_nan=False, indent=2)
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+    return str(path)
 
 
 def identifier(value):
@@ -385,15 +489,13 @@ def validate_payload(payload, model):
 
 def submit(api, store, model_id, payload, job_id=None):
     model = unwrap(api.read(MEDIA, 'models/' + quote(model_id, safe='')))
-    if model.get('status') is not None and model['status'] != 'active':
-        raise Error('Selected model is not active.')
-    if model.get('qworkers') is not None and int(model['qworkers']) <= 0:
-        raise Error('Selected model has no workers; choose another model.')
     payload = validate_payload(payload, model)
     # Detect invalid/nonfinite JSON before making an intent record or paid request.
     json.dumps(payload, allow_nan=False)
     job = {'job_id': identifier(job_id or str(uuid4())), 'model': model_id,
            'status': 'submitting', 'created_at': now(), 'request_id': None}
+    if model.get('qworkers') in (0, '0'):
+        job['notices'] = ['Model reports zero workers; queue time is unknown. GMI decides whether to accept this request.']
     store.create(job)
     try:
         record = api.call('POST', MEDIA, 'requests', {'model': model_id, 'payload': payload}, timeout=120)
@@ -541,12 +643,15 @@ def parser():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--state-dir', default=default_state_dir())
     sub = p.add_subparsers(dest='command', required=True)
-    for name in ('models', 'media-models', 'jobs', 'doctor'):
+    for name in ('text-models', 'media-models', 'jobs', 'doctor'):
         sub.add_parser(name)
-    discovery = sub.add_parser('catalog', help='Search fresh text and media catalogs together.')
-    discovery.add_argument('--kind', choices=('all', 'text', 'media'), default='all')
-    discovery.add_argument('--search', default='')
-    discovery.add_argument('--details', action='store_true', help='Inspect matching media model readiness and pricing.')
+    for name in ('models', 'catalog'):
+        discovery = sub.add_parser(name, help='Discover models across official docs and account APIs.')
+        discovery.add_argument('--kind', choices=('all', 'text', 'media'), default='all')
+        discovery.add_argument('--search', default='')
+        discovery.add_argument('--details', action='store_true', help='Inspect matching media metadata; narrow the search first.')
+        discovery.add_argument('--api-only', action='store_true', help='Skip the public documentation source.')
+        discovery.add_argument('--out', help='Save the complete JSON catalog and print its path/counts.')
     sub.add_parser('model').add_argument('model')
     recent = sub.add_parser('requests')
     recent.add_argument('--limit', type=positive, default=20)
@@ -596,14 +701,26 @@ def main(argv=None):
             result = download(store, job, args.out, args.max_bytes)
             emit(result)
             return 1 if result['failures'] else 0
-        api = API()
-        if args.command == 'catalog':
-            result = catalog(api, args.kind, args.search, args.details)
-            emit(result)
+        if args.command in ('models', 'catalog'):
+            api_error = None
+            try:
+                api = API()
+            except Error as exc:
+                api, api_error = None, exc
+            result = catalog(api, args.kind, args.search, args.details,
+                             include_docs=not args.api_only, api_error=api_error)
+            if args.out:
+                path = write_catalog(result, args.out)
+                emit({'saved_catalog': path, 'matched': result['matched'],
+                      'source_counts': result['source_counts'], 'complete': result['complete'],
+                      'errors': result['errors'], 'warnings': result['warnings']})
+            else:
+                emit(result)
             return 0 if result['complete'] else 1
-        if args.command in ('models', 'media-models', 'model', 'requests'):
+        api = API()
+        if args.command in ('text-models', 'media-models', 'model', 'requests'):
             base, path = MEDIA, 'models'
-            if args.command == 'models':
+            if args.command == 'text-models':
                 base = INFERENCE
             elif args.command == 'model':
                 path += '/' + quote(args.model, safe='')

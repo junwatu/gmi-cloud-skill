@@ -1,9 +1,10 @@
 # GMI Cloud skill — Public Beta
 
-**Status: Public beta (`v0.1.0-beta.5`).** APIs and workflows may change.
+**Status: Public beta (`v0.1.0-beta.6`).** APIs and workflows may change.
 Report reproducible issues in the [issue tracker](https://github.com/junwatu/gmi-cloud-skill/issues).
 
-Use GMI Cloud from Codex for model discovery, text inference, and image, video,
+Use GMI Cloud from Codex to discover documented and account-listed models, run
+text inference, and create image, video,
 or audio generation. Media jobs are saved locally so you can check their status,
 resume waiting, and download results later.
 
@@ -15,9 +16,9 @@ The helper calls GMI's HTTP APIs directly.
 |---|---|
 | Skill host | Codex with local skill discovery and permission to execute Python |
 | Python | Python 3.10 or newer, including standard-library HTTPS/TLS support |
-| Credentials | A GMI account and a valid inference API key in `GMI_API_KEY` |
+| Credentials | `GMI_API_KEY` for account API listings and generation; public documentation discovery works without it |
 | Model access | Access to the selected model and sufficient credits/quota for paid calls |
-| Network | HTTPS access to `api.gmi-serving.com`, `console.gmicloud.ai`, and returned artifact hosts |
+| Network | HTTPS access to `docs.gmicloud.ai`, `api.gmi-serving.com`, `console.gmicloud.ai`, and returned artifact hosts |
 | Local storage | A writable directory for job metadata and downloaded files |
 
 There are **no pip dependencies**. Node.js, Bash, zsh, curl, Docker, and administrator
@@ -30,7 +31,7 @@ was verified on macOS using a trusted CA bundle.
 
 ## Install in Codex
 
-1. Download [`gmi-cloud.zip`](https://github.com/junwatu/gmi-cloud-skill/releases/tag/v0.1.0-beta.5) and extract it. The resulting `gmi-cloud` folder must
+1. Download [`gmi-cloud.zip`](https://github.com/junwatu/gmi-cloud-skill/releases/tag/v0.1.0-beta.6) and extract it. The resulting `gmi-cloud` folder must
    contain `SKILL.md`, `scripts/`, `references/`, and `agents/`.
 2. Copy the **whole folder**, not only `SKILL.md`, into your user skills folder:
 
@@ -79,7 +80,7 @@ Ask Codex to install the public beta using the built-in skill installer:
 
 ```text
 Use $skill-installer to install gmi-cloud from
-https://github.com/junwatu/gmi-cloud-skill/tree/v0.1.0-beta.5/skills/gmi-cloud
+https://github.com/junwatu/gmi-cloud-skill/tree/v0.1.0-beta.6/skills/gmi-cloud
 ```
 
 The URL points directly to the skill folder and pins the beta release.
@@ -188,35 +189,58 @@ The helper never disables verification or changes the machine's trust store.
 `doctor` now reports TLS settings, CA count and default trust paths. An offline
 check alone does not prove connectivity; retry model listing after repairing TLS.
 
-## Find current and named models
+## Find all current and named models
 
-The `models` command queries the text/inference endpoint only. Use `catalog` to
-fetch both inference and media catalogs live, or search a model family:
+Run from the installed skill folder:
 
 ```sh
-python3 scripts/gmi_api.py catalog
-python3 scripts/gmi_api.py catalog --search "WAN 3.0" --details
-python3 scripts/gmi_api.py catalog --search "Seedance 2.5" --details
+python3 scripts/gmi_api.py models --out ./gmi-models.json
+python3 scripts/gmi_api.py models --search "WAN 3.0" --details
+python3 scripts/gmi_api.py models --search "Seedance 2.5" --details
+python3 scripts/gmi_api.py models --kind text
 ```
 
-Run these from the installed skill folder; on Windows use `py -3`. Search ignores
-case, spaces and punctuation, while preserving exact model IDs. No catalog is
-cached. `--details` inspects matching media entries for status, workers, modalities
-and price metadata. Narrow the search before requesting details.
+On Windows replace `python3` with `py -3`. `models` and its alias `catalog` query:
 
-A model can be listed and active with zero workers. It remains visible in the
-catalog with `readiness: no_workers`; that does not mean the skill lacks support
-for it. Catalog listing alone does not guarantee readiness or account permission
-to generate. Partial lookup failures are returned explicitly with `complete: false`.
-Results describe what the current API key and organization can list. They are not
-a guarantee of every product visible in GMI's console or a release-date ranking.
+1. GMI's [official model quickstart index](https://docs.gmicloud.ai/llms.txt).
+2. The account's [inference model API](https://docs.gmicloud.ai/inference-engine/api-reference/llm-api-reference).
+3. The account's [media model API](https://docs.gmicloud.ai/inference-engine/api-reference/video-api-reference).
+
+The merged result preserves public documentation entries even when the current
+API key does not list them, and API entries without public quickstarts. There is
+no stored list or default result cap. The exported JSON is complete for the
+successful queried sources; chat previews must be labeled as previews.
+
+Search ignores spaces, punctuation and case, using current IDs and documentation
+names. `--details` adds matching media metadata; narrow the search to avoid
+hundreds of detail requests. `--api-only` explicitly skips public documentation.
+
+Without a key, public documentation is still shown and missing account coverage
+is reported as `complete: false` with exit code 1. Failed sources never silently
+turn into "GMI has no models". The result includes errors, warnings, source counts,
+exact API IDs and documentation URLs. Documentation-only entries have `id: null`;
+read the linked quickstart for an explicit executable ID rather than guessing it.
+
+**Compatibility change in beta.6:** `models` is combined discovery by default.
+Use `text-models` for the former raw inference `{data: [...]}` JSON response.
+`media-models` still returns the raw media list.
+
+Zero workers or inactive status snapshots do not hide a model or locally block
+an authorized submission. Worker counts are telemetry; the official request API
+decides acceptance. A documented offering is separate from generation access.
+Private, regional, dedicated or newly announced offerings can need separate
+endpoint/account access. If an official model page is missing from discovery,
+use that page to investigate; don't conclude GMI does not offer the model.
+
+See [catalog coverage and recovery](references/catalog.md) for merge rules,
+full exports, partial failures, unsupported pagination signals and coverage limits.
 
 ## Use the skill
 
 Example Codex requests:
 
 ```text
-Use $gmi-cloud to list current models from both inference and media catalogs.
+Use $gmi-cloud to discover models from official docs and both account APIs, then save the full catalog.
 Use $gmi-cloud to find an active video model and show its parameters and pricing.
 Use $gmi-cloud to generate a video with MODEL_ID using this prompt: ...
 Use $gmi-cloud to check my saved media jobs and resume waiting for scene-01.
@@ -271,7 +295,7 @@ Run from the skill folder:
 python3 -m unittest discover -s scripts -p 'test_*.py'
 ```
 
-On Windows, use `py -3`. The 47 offline tests use a local HTTP fixture and require
+On Windows, use `py -3`. The 64 offline tests use a local HTTP fixture and require
 no GMI key or credits. They cover async recovery, failures, retries, download
 integrity, credential redaction, and portability behavior.
 

@@ -94,6 +94,10 @@ class Tests(unittest.TestCase):
         self.env.start()
         self.addCleanup(self.env.stop)
         self.api = LocalAPI()
+        self.original_docs_fetch = g.fetch_docs_index
+        docs = patch.object(g, 'fetch_docs_index', return_value='- [WAN 3.0 Video](https://docs.gmicloud.ai/model-quickstarts/video/wan3-0-video.md)')
+        docs.start()
+        self.addCleanup(docs.stop)
         self.store = g.Store(Path(self.tmp.name) / 'state')
         Fixture.calls, Fixture.posts, Fixture.response = [], 0, None
         Fixture.states = [{'request_id': 'req-1', 'model': 'demo', 'status': 'success', 'outcome': {}}]
@@ -447,7 +451,7 @@ class Tests(unittest.TestCase):
 
     def test_catalog_includes_both_sources(self):
         result = g.catalog(self.discovery_api())
-        self.assertEqual(result['source_counts'], {'text': 1, 'media': 3})
+        self.assertEqual(result['source_counts'], {'text': 1, 'media': 3, 'documentation': 1})
         self.assertEqual(result['matched'], 4)
         self.assertTrue(result['complete'])
 
@@ -461,7 +465,7 @@ class Tests(unittest.TestCase):
     def test_catalog_keeps_zero_worker_models(self):
         api = self.discovery_api()
         result = g.catalog(api, search='wan 3.0', details=True)
-        self.assertEqual(result['models'][0]['readiness'], 'no_workers')
+        self.assertEqual(result['models'][0]['readiness'], 'no_workers_reported')
         self.assertTrue(result['models'][0]['listed'])
         self.assertEqual(result['matched'], 1)
         self.assertEqual(api.read.call_count, 3)
@@ -489,7 +493,7 @@ class Tests(unittest.TestCase):
         api = self.discovery_api()
         self.assertEqual(g.catalog(api, kind='media')['matched'], 3)
         api.read.side_effect = lambda *args: {'model_ids': ['brand-new-model']}
-        self.assertEqual(g.catalog(api, kind='media')['models'][0]['id'], 'brand-new-model')
+        self.assertIn('brand-new-model', [r['id'] for r in g.catalog(api, kind='media')['models']])
 
     def test_catalog_detail_failure_preserves_listed_entry(self):
         api = self.discovery_api()
@@ -503,6 +507,161 @@ class Tests(unittest.TestCase):
         self.assertEqual(result['models'][0]['id'], 'wan3.0-video')
         self.assertFalse(result['complete'])
         self.assertTrue(result['models'][0]['listed'])
+
+    def test_documentation_only_model_remains_discoverable(self):
+        with patch.object(g, 'fetch_docs_index', return_value='- [New Video Model](https://docs.gmicloud.ai/model-quickstarts/video/new-video-model.md)'):
+            result = g.catalog(self.discovery_api(), search='New Video')
+        self.assertEqual(result['matched'], 1)
+        record = result['models'][0]
+        self.assertIsNone(record['id'])
+        self.assertEqual(record['api_listing'], 'not_returned')
+        self.assertTrue(record['documented'])
+        self.assertFalse(record['listed'])
+
+    def test_missing_credentials_keeps_public_docs_and_flags_partial(self):
+        result = g.catalog(None, search='WAN 3.0')
+        self.assertEqual(result['matched'], 1)
+        self.assertFalse(result['complete'])
+        self.assertEqual(result['models'][0]['api_listing'], 'unknown')
+        self.assertEqual(result['successful_sources'], ['documentation'])
+
+    def test_public_name_alias_merges_to_exact_api_id(self):
+        with patch.object(g, 'fetch_docs_index', return_value='- [Creative Video](https://docs.gmicloud.ai/model-quickstarts/video/wan3-0-video.md)'):
+            result = g.catalog(self.discovery_api(), search='Creative Video')
+        self.assertEqual(result['matched'], 1)
+        self.assertEqual(result['models'][0]['id'], 'wan3.0-video')
+        self.assertTrue(result['models'][0]['documented'])
+
+    def test_documentation_failure_preserves_api_results(self):
+        with patch.object(g, 'fetch_docs_index', side_effect=g.Error('Docs unavailable.')):
+            result = g.catalog(self.discovery_api())
+        self.assertEqual(result['matched'], 4)
+        self.assertFalse(result['complete'])
+        self.assertEqual(result['errors'][0]['source'], 'documentation')
+
+    def test_parser_ignores_nonmodels_and_untrusted_docs_links(self):
+        index = '''- [Overview](https://docs.gmicloud.ai/model-quickstarts/video/about.md)
+- [Fake](https://example.com/model-quickstarts/video/fake.md)
+- [Studio node](https://docs.gmicloud.ai/gmi-studio/nodes/video/wan.md)
+- [A model](https://docs.gmicloud.ai/model-quickstarts/video/model-a.md)
+'''
+        records = g.documented_models(index)
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]['doc_slug'], 'model-a')
+
+    def test_unrecognized_docs_index_is_explicit_error(self):
+        with self.assertRaises(g.Error):
+            g.documented_models('An HTML error page instead of model links.')
+
+    def test_unexpected_pagination_is_not_reported_complete(self):
+        api = self.discovery_api()
+        original = api.read.side_effect
+        def read(base, path):
+            value = original(base, path)
+            if base == g.MEDIA and path == 'models':
+                value['has_more'] = True
+            return value
+        api.read.side_effect = read
+        result = g.catalog(api)
+        self.assertFalse(result['complete'])
+        self.assertEqual(result['matched'], 4)
+        self.assertTrue(any(e['code'] == 'CATALOG_INCOMPLETE' for e in result['errors']))
+
+    def test_default_models_command_uses_all_sources_and_export(self):
+        destination = Path(self.tmp.name) / 'catalog.json'
+        output = io.StringIO()
+        with patch.object(g, 'API', return_value=self.discovery_api()), redirect_stdout(output):
+            code = g.main(['models', '--out', str(destination)])
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(destination.read_text())['matched'], 4)
+        self.assertEqual(json.loads(output.getvalue())['saved_catalog'], str(destination.resolve()))
+
+    def test_models_without_key_returns_docs_instead_of_empty_failure(self):
+        output = io.StringIO()
+        with patch.dict(os.environ, {'GMI_API_KEY': ''}), redirect_stdout(output):
+            code = g.main(['models'])
+        result = json.loads(output.getvalue())
+        self.assertEqual(code, 1)
+        self.assertEqual(result['matched'], 1)
+        self.assertEqual(result['errors'][0]['code'], 'MISSING_API_KEY')
+
+    def test_public_documentation_request_has_no_credentials(self):
+        opener = unittest.mock.MagicMock()
+        response = unittest.mock.Mock()
+        response.read.return_value = b'public docs'
+        opener.open.return_value.__enter__.return_value = response
+        # Use the real function despite the default test fixture patch.
+        real_fetch = self.original_docs_fetch
+        with patch.object(g, 'build_opener', return_value=opener):
+            self.assertEqual(real_fetch(), 'public docs')
+        request = opener.open.call_args.args[0]
+        self.assertFalse(request.has_header('Authorization'))
+        self.assertFalse(request.has_header('X-organization-id'))
+
+    def test_zero_workers_do_not_block_authorized_submission(self):
+        schema = {**Fixture.schema, 'qworkers': 0}
+        with patch.object(self.api, 'read', return_value=schema):
+            job = self.submit()
+        self.assertEqual(Fixture.posts, 1)
+        self.assertIn('zero workers', job['notices'][0])
+
+    def test_documented_created_state_is_pending(self):
+        Fixture.response = (200, {'request_id': 'req-1', 'model': 'demo', 'status': 'created'})
+        self.assertEqual(g.job_exit(self.submit()), 3)
+
+    def test_live_style_empty_model_id_is_reported_without_crashing(self):
+        api = self.discovery_api()
+        original = api.read.side_effect
+        def read(base, path):
+            data = original(base, path)
+            if base == g.MEDIA and path == 'models':
+                data['model_ids'].append('')
+            return data
+        api.read.side_effect = read
+        result = g.catalog(api)
+        self.assertEqual(result['matched'], 4)
+        self.assertEqual(result['warnings'][0]['code'], 'EMPTY_MODEL_ID')
+        self.assertTrue(result['complete'])
+
+    def test_invalid_middle_record_does_not_hide_later_models(self):
+        api = self.discovery_api()
+        original = api.read.side_effect
+        def read(base, path):
+            if base == g.MEDIA and path == 'models':
+                return {'model_ids': ['first-model', {}, 'last-model']}
+            return original(base, path)
+        api.read.side_effect = read
+        result = g.catalog(api)
+        ids = [r['id'] for r in result['models']]
+        self.assertIn('first-model', ids)
+        self.assertIn('last-model', ids)
+        self.assertFalse(result['complete'])
+        self.assertEqual(result['errors'][0]['code'], 'CATALOG_INVALID_RECORD')
+
+    def test_ambiguous_doc_alias_does_not_guess_an_api_id(self):
+        api = self.discovery_api()
+        api.read.side_effect = lambda base, path: {'model_ids': ['a-b', 'ab']}
+        with patch.object(g, 'fetch_docs_index', return_value='- [AB](https://docs.gmicloud.ai/model-quickstarts/video/ab.md)'):
+            result = g.catalog(api, kind='media')
+        docs = [r for r in result['models'] if r['source'] == 'documentation']
+        self.assertEqual(len(docs), 1)
+        self.assertIsNone(docs[0]['id'])
+        self.assertEqual(len(result['models']), 3)
+
+    def test_text_models_preserves_raw_inference_response(self):
+        api = self.discovery_api()
+        output = io.StringIO()
+        with patch.object(g, 'API', return_value=api), redirect_stdout(output):
+            code = g.main(['text-models'])
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(output.getvalue())['data'][0]['id'], 'text/model')
+        self.assertEqual(api.read.call_count, 1)
+
+    def test_status_snapshot_does_not_block_authorized_submission(self):
+        with patch.object(self.api, 'read', return_value={**Fixture.schema, 'status': 'inactive'}):
+            job = self.submit()
+        self.assertEqual(Fixture.posts, 1)
+        self.assertEqual(job['request_id'], 'req-1')
 
 
 if __name__ == '__main__':
