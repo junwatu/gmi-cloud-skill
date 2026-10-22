@@ -202,6 +202,72 @@ def unwrap(value):
     return value['data'] if isinstance(value.get('data'), dict) else value
 
 
+def model_matches(record, search):
+    """Compare names without punctuation/spacing; retain exact IDs for requests."""
+    normalize = lambda s: re.sub(r'[^a-z0-9]', '', str(s).casefold())
+    query = normalize(search)
+    return not query or any(query in normalize(record.get(key, ''))
+                            for key in ('id', 'model', 'name', 'display_name'))
+
+
+def catalog(api, kind='all', search='', details=False):
+    """Fresh discovery across both catalogs. Never filter out unavailable entries."""
+    records, errors, counts = [], [], {}
+    if kind in ('all', 'text'):
+        try:
+            data = api.read(INFERENCE, 'models').get('data')
+            if not isinstance(data, list):
+                raise Error('Unexpected text model catalog shape.')
+            counts['text'] = len(data)
+            for value in data:
+                if not isinstance(value, dict) or not isinstance(value.get('id'), str):
+                    raise Error('Text catalog contains an invalid model record.')
+                record = {**value, 'source': 'text', 'listed': True}
+                if model_matches(record, search):
+                    records.append(record)
+        except Error as exc:
+            errors.append({'source': 'text', 'error': str(exc), 'code': exc.code})
+    if kind in ('all', 'media'):
+        try:
+            ids = api.read(MEDIA, 'models').get('model_ids')
+            if not isinstance(ids, list) or any(not isinstance(x, str) for x in ids):
+                raise Error('Unexpected media model catalog shape.')
+            counts['media'] = len(ids)
+            for model_id in dict.fromkeys(ids):
+                record = {'id': model_id, 'source': 'media', 'listed': True,
+                          'readiness': 'unknown'}
+                if model_matches(record, search):
+                    records.append(record)
+        except Error as exc:
+            errors.append({'source': 'media', 'error': str(exc), 'code': exc.code})
+    if details:
+        for record in records:
+            if record['source'] != 'media':
+                continue
+            try:
+                data = unwrap(api.read(MEDIA, 'models/' + quote(record['id'], safe='')))
+                for key in ('display_name', 'model_type', 'status', 'qworkers',
+                            'modalities', 'model_metadata', 'price_info'):
+                    if key in data:
+                        record[key] = data[key]
+                status, workers = data.get('status'), data.get('qworkers')
+                if status is not None and status != 'active':
+                    record['readiness'] = 'unavailable'
+                elif workers is not None:
+                    if int(workers) <= 0:
+                        record['readiness'] = 'no_workers'
+                    elif status == 'active':
+                        record['readiness'] = 'ready'
+            except (Error, ValueError, TypeError) as exc:
+                message = str(exc) if isinstance(exc, Error) else 'Invalid readiness metadata.'
+                errors.append({'source': 'media', 'id': record['id'], 'error': message,
+                               'code': getattr(exc, 'code', None)})
+    records.sort(key=lambda r: (r['source'], r['id'].casefold()))
+    return {'retrieved_at': now(), 'source_counts': counts, 'search': search,
+            'models': records, 'matched': len(records), 'complete': not errors,
+            'errors': errors}
+
+
 def identifier(value):
     if not isinstance(value, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,127}', value):
         raise Error('IDs must be 1-128 letters, numbers, dots, underscores or hyphens.')
@@ -477,6 +543,10 @@ def parser():
     sub = p.add_subparsers(dest='command', required=True)
     for name in ('models', 'media-models', 'jobs', 'doctor'):
         sub.add_parser(name)
+    discovery = sub.add_parser('catalog', help='Search fresh text and media catalogs together.')
+    discovery.add_argument('--kind', choices=('all', 'text', 'media'), default='all')
+    discovery.add_argument('--search', default='')
+    discovery.add_argument('--details', action='store_true', help='Inspect matching media model readiness and pricing.')
     sub.add_parser('model').add_argument('model')
     recent = sub.add_parser('requests')
     recent.add_argument('--limit', type=positive, default=20)
@@ -527,6 +597,10 @@ def main(argv=None):
             emit(result)
             return 1 if result['failures'] else 0
         api = API()
+        if args.command == 'catalog':
+            result = catalog(api, args.kind, args.search, args.details)
+            emit(result)
+            return 0 if result['complete'] else 1
         if args.command in ('models', 'media-models', 'model', 'requests'):
             base, path = MEDIA, 'models'
             if args.command == 'models':

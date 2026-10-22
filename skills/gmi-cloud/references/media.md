@@ -6,6 +6,7 @@ Use `python3 <skill-dir>/scripts/gmi_api.py` below as `HELPER`.
 
 ```sh
 HELPER media-models
+HELPER catalog --kind media --search "Seedance 2.5" --details
 HELPER model MODEL_ID
 ```
 
@@ -15,6 +16,21 @@ Details include `parameters`, `modalities`, `model_type`, `status`, `qworkers`,
 `model_metadata`, and `price_info` when supplied. Prefer active models with
 workers. Submission rejects explicitly inactive status or zero workers; missing
 readiness fields do not prove readiness.
+
+Use `catalog` for a combined live text/media inventory. `--search` matches names
+without punctuation, spaces or case differences, preserving exact API IDs for
+requests. `--details` fetches readiness, modalities, status and price metadata for
+matching media entries only. Narrow the search before requesting details to avoid
+hundreds of lookups. Without details, readiness is explicitly unknown.
+
+Discovery preserves inactive and zero-worker models instead of hiding them.
+Show these when the user asks for all or a named model; explain current readiness
+separately. Do not equate zero workers with unsupported. The list is queried fresh
+on every invocation. Source or detail failures produce `complete: false`, errors,
+and exit 1 while retaining successful entries. Absence in an incomplete result
+does not establish that a model is unavailable. Returned catalogs are scoped to
+the current key/organization and do not prove every product visible in the web
+console is available through these API endpoints.
 
 Write `payload.json` from the chosen model's schema. Names differ by model:
 `prompt`, `text`, `lyrics`, `duration`, `durationSeconds`, etc. The helper checks
@@ -109,7 +125,9 @@ Sources consulted 2026-10-23:
 - [GMI rate limits](https://docs.gmicloud.ai/inference-engine/api-reference/rate-limit).
 - [Community snapshot](https://github.com/zkasuran/gmi/tree/e1fd7116fad2113730b8b8df947e16b2741a81bb): additional observed readiness fields/media shapes, not API guarantees.
 
-Validated with local HTTP fixtures, not a live GMI account.
+Catalog listing and selected readiness metadata were verified live. Job lifecycle
+and downloads were validated with local HTTP fixtures; paid generation remains
+unverified.
 
 Run the bundled regression suite with:
 `python3 -m unittest discover -s <skill-dir>/scripts -p 'test_*.py'`.

@@ -433,6 +433,77 @@ class Tests(unittest.TestCase):
         self.assertEqual(result['failures'][0]['code'], 'TLS_CERTIFICATE_VERIFY_FAILED')
         self.assertEqual(opener.open.call_count, 1)
 
+    def discovery_api(self):
+        api = unittest.mock.Mock()
+        def read(base, path):
+            if base == g.INFERENCE:
+                return {'data': [{'id': 'text/model', 'name': 'Text Model'}]}
+            if path == 'models':
+                return {'model_ids': ['wan3.0-video', 'seedance-2-5-260628', 'seedance-2-0-260128']}
+            return {'model': path.split('/')[-1], 'status': 'active',
+                    'qworkers': 0 if 'wan' in path else 1, 'model_type': 'video'}
+        api.read.side_effect = read
+        return api
+
+    def test_catalog_includes_both_sources(self):
+        result = g.catalog(self.discovery_api())
+        self.assertEqual(result['source_counts'], {'text': 1, 'media': 3})
+        self.assertEqual(result['matched'], 4)
+        self.assertTrue(result['complete'])
+
+    def test_catalog_search_handles_spacing_case_and_punctuation(self):
+        for query, expected in [('WAN 3.0', 'wan3.0-video'),
+                                ('Seedance 2.5', 'seedance-2-5-260628'),
+                                ('SEEDANCE 2.0', 'seedance-2-0-260128')]:
+            result = g.catalog(self.discovery_api(), search=query)
+            self.assertEqual([r['id'] for r in result['models']], [expected])
+
+    def test_catalog_keeps_zero_worker_models(self):
+        api = self.discovery_api()
+        result = g.catalog(api, search='wan 3.0', details=True)
+        self.assertEqual(result['models'][0]['readiness'], 'no_workers')
+        self.assertTrue(result['models'][0]['listed'])
+        self.assertEqual(result['matched'], 1)
+        self.assertEqual(api.read.call_count, 3)
+
+    def test_catalog_no_details_does_not_guess_readiness(self):
+        api = self.discovery_api()
+        result = g.catalog(api, kind='media', search='wan 3.0')
+        self.assertEqual(result['models'][0]['readiness'], 'unknown')
+        self.assertEqual(api.read.call_count, 1)
+
+    def test_catalog_partial_failure_preserves_other_source(self):
+        api = self.discovery_api()
+        original = api.read.side_effect
+        def read(base, path):
+            if base == g.INFERENCE:
+                raise g.Error('GMI connection failed.')
+            return original(base, path)
+        api.read.side_effect = read
+        result = g.catalog(api)
+        self.assertFalse(result['complete'])
+        self.assertEqual(result['matched'], 3)
+        self.assertEqual(result['errors'][0]['source'], 'text')
+
+    def test_catalog_live_results_are_not_cached(self):
+        api = self.discovery_api()
+        self.assertEqual(g.catalog(api, kind='media')['matched'], 3)
+        api.read.side_effect = lambda *args: {'model_ids': ['brand-new-model']}
+        self.assertEqual(g.catalog(api, kind='media')['models'][0]['id'], 'brand-new-model')
+
+    def test_catalog_detail_failure_preserves_listed_entry(self):
+        api = self.discovery_api()
+        original = api.read.side_effect
+        def read(base, path):
+            if path.startswith('models/'):
+                raise g.Error('GMI HTTP 403.')
+            return original(base, path)
+        api.read.side_effect = read
+        result = g.catalog(api, kind='media', search='wan 3.0', details=True)
+        self.assertEqual(result['models'][0]['id'], 'wan3.0-video')
+        self.assertFalse(result['complete'])
+        self.assertTrue(result['models'][0]['listed'])
+
 
 if __name__ == '__main__':
     unittest.main()

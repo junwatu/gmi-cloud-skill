@@ -5,7 +5,7 @@
 A Codex skill for GMI Cloud model discovery, text inference, and resumable image,
 video, and audio generation. Written in Python using only the standard library.
 
-**Version: `v0.1.0-beta.4`.** Expect changes while API behavior and platform support
+**Version: `v0.1.0-beta.5`.** Expect changes while API behavior and platform support
 are validated. This is an independent community project, not an official GMI Cloud product.
 
 ## Install
@@ -14,11 +14,11 @@ Ask Codex:
 
 ```text
 Use $skill-installer to install gmi-cloud from
-https://github.com/junwatu/gmi-cloud-skill/tree/v0.1.0-beta.4/skills/gmi-cloud
+https://github.com/junwatu/gmi-cloud-skill/tree/v0.1.0-beta.5/skills/gmi-cloud
 ```
 
 Or download `gmi-cloud.zip` from the
-[beta release](https://github.com/junwatu/gmi-cloud-skill/releases/tag/v0.1.0-beta.4)
+[beta release](https://github.com/junwatu/gmi-cloud-skill/releases/tag/v0.1.0-beta.5)
 and follow the [manual installation guide](skills/gmi-cloud/README.md#install-in-codex).
 
 ## Requirements
@@ -31,6 +31,13 @@ and follow the [manual installation guide](skills/gmi-cloud/README.md#install-in
 
 See the [complete setup and usage guide](skills/gmi-cloud/README.md).
 
+## Current model discovery
+
+`catalog` combines fresh inference and media listings. Search ignores spaces,
+punctuation and case, so names such as "WAN 3.0" and "Seedance 2.5" resolve to
+matching API IDs. Optional detail lookups show readiness separately; models with
+zero workers remain listed. See the [catalog guide](skills/gmi-cloud/README.md#find-current-and-named-models).
+
 ## Async media jobs
 
 Submit once, save the request ID, and resume status polling later. The helper
@@ -41,7 +48,7 @@ not cancel remote work; there is no background monitoring daemon.
 
 ## Beta verification
 
-40 offline tests pass locally on macOS with Python 3.13. Windows/Linux path logic
+47 offline tests pass locally on macOS with Python 3.13. Windows/Linux path logic
 has simulated coverage; native Windows/Linux testing remains unverified.
 Tests are run manually. This repository has no automatic GitHub Actions workflow.
 Read-only model discovery was verified against GMI with a trusted CA bundle.

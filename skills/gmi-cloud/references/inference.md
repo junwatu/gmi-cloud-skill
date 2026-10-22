@@ -3,6 +3,8 @@
 Use `python3 <skill-dir>/scripts/gmi_api.py` below as `HELPER`.
 
 ```sh
+HELPER catalog
+HELPER catalog --kind text --search "MODEL NAME"
 HELPER models
 HELPER chat --model MODEL_ID --prompt 'Explain this error' --max-tokens 512
 HELPER chat --model MODEL_ID --messages-file conversation.json --max-tokens 512
@@ -22,3 +24,7 @@ Do not echo keys from shell environment tools.
 Source: [GMI LLM reference](https://docs.gmicloud.ai/inference-engine/api-reference/llm-api-reference),
 consulted 2026-10-23. Check current docs when models reject parameters. Read-only model discovery was verified on macOS with a trusted CA bundle.
 Live text generation remains unverified.
+
+`models` returns only the inference endpoint catalog. For all currently listed
+text and media entries, use `catalog`. It fetches both sources on every call and
+reports source counts and errors. Listing order is not a release-date ranking.
