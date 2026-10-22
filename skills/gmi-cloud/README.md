@@ -1,6 +1,6 @@
 # GMI Cloud skill — Public Beta
 
-**Status: Public beta (`v0.1.0-beta.3`).** APIs and workflows may change.
+**Status: Public beta (`v0.1.0-beta.4`).** APIs and workflows may change.
 Report reproducible issues in the [issue tracker](https://github.com/junwatu/gmi-cloud-skill/issues).
 
 Use GMI Cloud from Codex for model discovery, text inference, and image, video,
@@ -30,7 +30,7 @@ was verified on macOS using a trusted CA bundle.
 
 ## Install in Codex
 
-1. Download [`gmi-cloud.zip`](https://github.com/junwatu/gmi-cloud-skill/releases/tag/v0.1.0-beta.3) and extract it. The resulting `gmi-cloud` folder must
+1. Download [`gmi-cloud.zip`](https://github.com/junwatu/gmi-cloud-skill/releases/tag/v0.1.0-beta.4) and extract it. The resulting `gmi-cloud` folder must
    contain `SKILL.md`, `scripts/`, `references/`, and `agents/`.
 2. Copy the **whole folder**, not only `SKILL.md`, into your user skills folder:
 
@@ -79,7 +79,7 @@ Ask Codex to install the public beta using the built-in skill installer:
 
 ```text
 Use $skill-installer to install gmi-cloud from
-https://github.com/junwatu/gmi-cloud-skill/tree/v0.1.0-beta.3/skills/gmi-cloud
+https://github.com/junwatu/gmi-cloud-skill/tree/v0.1.0-beta.4/skills/gmi-cloud
 ```
 
 The URL points directly to the skill folder and pins the beta release.
@@ -239,6 +239,8 @@ submitted prompts. Treat result URLs as private. POSIX uses private file modes;
 Windows inherits directory ACLs. Store files in a user-controlled directory.
 
 ## Tests and scope
+
+Tests run manually; this repository does not configure automatic GitHub Actions.
 
 Run from the skill folder:
 

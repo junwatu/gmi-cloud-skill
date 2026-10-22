@@ -5,7 +5,7 @@
 A Codex skill for GMI Cloud model discovery, text inference, and resumable image,
 video, and audio generation. Written in Python using only the standard library.
 
-**Version: `v0.1.0-beta.3`.** Expect changes while API behavior and platform support
+**Version: `v0.1.0-beta.4`.** Expect changes while API behavior and platform support
 are validated. This is an independent community project, not an official GMI Cloud product.
 
 ## Install
@@ -14,11 +14,11 @@ Ask Codex:
 
 ```text
 Use $skill-installer to install gmi-cloud from
-https://github.com/junwatu/gmi-cloud-skill/tree/v0.1.0-beta.3/skills/gmi-cloud
+https://github.com/junwatu/gmi-cloud-skill/tree/v0.1.0-beta.4/skills/gmi-cloud
 ```
 
 Or download `gmi-cloud.zip` from the
-[beta release](https://github.com/junwatu/gmi-cloud-skill/releases/tag/v0.1.0-beta.3)
+[beta release](https://github.com/junwatu/gmi-cloud-skill/releases/tag/v0.1.0-beta.4)
 and follow the [manual installation guide](skills/gmi-cloud/README.md#install-in-codex).
 
 ## Requirements
@@ -42,10 +42,8 @@ not cancel remote work; there is no background monitoring daemon.
 ## Beta verification
 
 40 offline tests pass locally on macOS with Python 3.13. Windows/Linux path logic
-has simulated coverage. CI is configured for Windows, macOS, and Linux with
-Python 3.10 and 3.13, but the initial jobs could not start because GitHub reported
-an account billing lock. No native Windows/Linux CI results are available yet.
-See the [initial CI run](https://github.com/junwatu/gmi-cloud-skill/actions/runs/39844807249).
+has simulated coverage; native Windows/Linux testing remains unverified.
+Tests are run manually. This repository has no automatic GitHub Actions workflow.
 Read-only model discovery was verified against GMI with a trusted CA bundle.
 Live generation, provisioning, and media uploads remain unverified.
 The helper implements inference and media, with compute guidance as reference only.
