@@ -2,7 +2,7 @@
 
 The helper covers inference and media. For requested sandbox/GPU workflows,
 consult current official docs and implement only the needed direct HTTP calls.
-Do not claim this helper covers compute or invoke the community CLI.
+Keep compute operations separate from the included inference/media helper.
 
 - [Sandbox overview](https://docs.gmicloud.ai/api-reference/sandbox/overview)
 - [Create sandbox](https://docs.gmicloud.ai/api-reference/sandbox/create-a-sandbox)

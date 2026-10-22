@@ -1,13 +1,12 @@
 ---
 name: gmi-cloud
-description: Use GMI Cloud directly for model discovery, text inference, and image, video or audio generation with persistent, resumable asynchronous jobs. Use when the user requests GMI workflows; no gmi CLI or SDK is required.
+description: Discover GMI Cloud models, run text inference, and generate images, video, or audio with persistent asynchronous jobs. Use for GMI requests that need submission, status checks, resumable polling, recovery, or artifact downloads.
 ---
 
 # GMI Cloud
 
 Call GMI directly using Python 3.10+ and the standard-library helper at
 `scripts/gmi_api.py`. Resolve this path relative to this skill's directory.
-The helper has no dependency on the community `gmi` package.
 For interpreter selection, environment setup, native state locations, or Windows
 usage, read [references/portability.md](references/portability.md).
 

@@ -1,4 +1,4 @@
 interface:
   display_name: "GMI Cloud"
-  short_description: "Direct GMI inference and resumable media jobs"
+  short_description: "GMI models, text inference, and async media jobs"
   default_prompt: "Use $gmi-cloud to discover models and run a resumable media generation job."

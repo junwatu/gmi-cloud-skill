@@ -1,9 +1,8 @@
 # Windows, macOS, and Linux
 
-The helper needs Python 3.10+ and its standard library. It does not require Bash,
-zsh, curl, pip packages, executable file bits, or the community GMI CLI. Invoke
-the script through an available Python interpreter. Verify its version rather
-than assuming `python` means Python 3.
+The helper uses Python 3.10+ and its standard library. Invoke the script through
+an available Python interpreter. Verify its version rather than assuming
+`python` means Python 3.
 
 | Host | Usual interpreter | Default job directory |
 |---|---|---|

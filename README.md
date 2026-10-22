@@ -5,7 +5,7 @@
 A Codex skill for GMI Cloud model discovery, text inference, and resumable image,
 video, and audio generation. Written in Python using only the standard library.
 
-**Version: `v0.1.0-beta.1`.** Expect changes while API behavior and platform support
+**Version: `v0.1.0-beta.2`.** Expect changes while API behavior and platform support
 are validated. This is an independent community project, not an official GMI Cloud product.
 
 ## Install
@@ -14,11 +14,11 @@ Ask Codex:
 
 ```text
 Use $skill-installer to install gmi-cloud from
-https://github.com/junwatu/gmi-cloud-skill/tree/v0.1.0-beta.1/skills/gmi-cloud
+https://github.com/junwatu/gmi-cloud-skill/tree/v0.1.0-beta.2/skills/gmi-cloud
 ```
 
 Or download `gmi-cloud.zip` from the
-[beta release](https://github.com/junwatu/gmi-cloud-skill/releases/tag/v0.1.0-beta.1)
+[beta release](https://github.com/junwatu/gmi-cloud-skill/releases/tag/v0.1.0-beta.2)
 and follow the [manual installation guide](skills/gmi-cloud/README.md#install-in-codex).
 
 ## Requirements
