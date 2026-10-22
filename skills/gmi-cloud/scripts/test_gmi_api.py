@@ -3,6 +3,7 @@ from contextlib import redirect_stdout, redirect_stderr
 import io
 import json
 import os
+import ssl
 from pathlib import Path
 import tempfile
 import threading
@@ -388,6 +389,49 @@ class Tests(unittest.TestCase):
         self.assertIs(result['credentials_available'], True)
         self.assertNotIn('FAKE-secret', buffer.getvalue())
         self.assertFalse(self.store.root.exists())
+
+    def test_tls_context_requires_certificate_and_hostname_verification(self):
+        with patch.dict(os.environ, {'GMI_CA_BUNDLE': ''}):
+            context = g.tls_context()
+        self.assertEqual(context.verify_mode, ssl.CERT_REQUIRED)
+        self.assertTrue(context.check_hostname)
+
+    def test_explicit_bundle_is_used(self):
+        with patch.dict(os.environ, {'GMI_CA_BUNDLE': str(Path(self.tmp.name) / 'trusted.pem')}):
+            with patch.object(g.ssl, 'create_default_context') as create:
+                g.tls_context()
+        create.assert_called_once_with(cafile=str(Path(self.tmp.name) / 'trusted.pem'))
+
+    def test_invalid_ca_bundle_is_actionable(self):
+        with patch.dict(os.environ, {'GMI_CA_BUNDLE': str(Path(self.tmp.name) / 'missing.pem')}):
+            with self.assertRaises(g.Error) as caught:
+                g.tls_context()
+        self.assertEqual(caught.exception.code, 'TLS_CA_CONFIG')
+        self.assertFalse(caught.exception.transient)
+
+    def test_certificate_error_is_not_retried(self):
+        problem = ssl.SSLCertVerificationError(1, 'certificate verify failed')
+        with patch.object(self.api.opener, 'open', side_effect=g.URLError(problem)) as request:
+            with self.assertRaises(g.Error) as caught:
+                self.api.read(g.INFERENCE, 'models')
+        self.assertEqual(caught.exception.code, 'TLS_CERTIFICATE_VERIFY_FAILED')
+        self.assertFalse(caught.exception.transient)
+        self.assertEqual(request.call_count, 1)
+
+    def test_doctor_reports_tls_verification(self):
+        result = g.tls_diagnostics()
+        self.assertIs(result['certificate_verification'], True)
+        self.assertIs(result['hostname_verification'], True)
+        self.assertIsInstance(result['loaded_ca_count'], int)
+
+    def test_artifact_certificate_error_is_actionable(self):
+        job = self.submit()
+        job.update(status='success', outcome={'video_url': 'https://artifact.example/video.mp4'})
+        opener = unittest.mock.Mock()
+        opener.open.side_effect = g.URLError(ssl.SSLCertVerificationError(1, 'certificate verify failed'))
+        result = g.download(self.store, job, Path(self.tmp.name) / 'out', 100, opener=opener)
+        self.assertEqual(result['failures'][0]['code'], 'TLS_CERTIFICATE_VERIFY_FAILED')
+        self.assertEqual(opener.open.call_count, 1)
 
 
 if __name__ == '__main__':

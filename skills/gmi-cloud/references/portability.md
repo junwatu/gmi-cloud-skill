@@ -76,6 +76,71 @@ Unix-mode privacy from these flags: state and downloaded files inherit the
 account directory's ACLs. Keep them in a user-controlled folder; the helper does
 not alter Windows ACLs or require administrator access.
 
+## TLS certificates
+
+The helper verifies server certificates and hostnames for both API requests and
+artifact downloads. It uses Python's default trust setup, including supported
+`SSL_CERT_FILE` / `SSL_CERT_DIR` settings. Optionally set `GMI_CA_BUNDLE` to an
+absolute path to a trusted PEM CA bundle; it takes precedence and replaces the
+default trust roots for this helper. For corporate proxies, use a bundle supplied
+by your organization containing the required public and corporate CA certificates.
+Do not download an arbitrary certificate bundle from an untrusted source.
+
+`doctor` reports verification settings, loaded CA count and resolved default
+certificate paths offline. A zero count can indicate missing trust roots, but
+some CA directories load certificates lazily, so the count alone is not a network
+test. Test actual connectivity using `models` after configuration.
+
+`TLS_CERTIFICATE_VERIFY_FAILED` means a server certificate could not be verified;
+it can indicate missing roots, an expired certificate, hostname mismatch, a wrong
+system clock, or a TLS-intercepting proxy. `TLS_CA_CONFIG` means the configured
+trust files could not be loaded. Certificate failures are not retried as transient
+network errors. For an uncertain media submission, reconcile the saved job before
+any new submission even after TLS is repaired.
+
+### macOS
+
+For Python installed from python.org, finish certificate setup using
+`/Applications/Python 3.X/Install Certificates.command` for the actual Python
+version running the helper. This installer step may download certificates; it is
+not a runtime dependency of the skill. For Homebrew/Conda Python, use that
+distribution's certificate setup instead.
+
+As a per-process alternative, if `/etc/ssl/cert.pem` exists and is the trusted
+system bundle for the machine:
+
+```sh
+GMI_CA_BUNDLE=/etc/ssl/cert.pem python3 scripts/gmi_api.py models
+```
+
+This path is a macOS-specific option, not a default imposed on other OSes.
+
+### Linux
+
+Ensure the distribution's `ca-certificates` package is installed and current,
+including in minimal container images. Use the distribution's normal trust-store
+tools for organization CAs. If the Python installation does not find that store,
+set `GMI_CA_BUNDLE` to its verified PEM bundle path; locations vary by distribution.
+For example, Debian/Ubuntu commonly use `/etc/ssl/certs/ca-certificates.crt`.
+
+### Windows
+
+Python's default SSL setup loads supported Windows certificate stores. Update
+Windows/Python certificate configuration, and check whether corporate proxy CAs
+are installed for the account running the helper. For a trusted PEM bundle:
+
+```powershell
+$env:GMI_CA_BUNDLE = 'C:\certificates\approved-ca-bundle.pem'
+py -3 scripts/gmi_api.py models
+```
+
+The bundle path must be available in the executor's environment too. Restart or
+relaunch a desktop app when necessary for environment changes to take effect.
+There is no insecure TLS bypass option and no automatic trust-store modification.
+
+Sources: [Python SSL defaults](https://docs.python.org/3/library/ssl.html#ssl.create_default_context)
+and [python.org macOS certificate setup](https://docs.python.org/3.13/using/mac.html).
+
 ## Verification limits
 
 The offline suite covers OS path-selection branches, reserved names, UTF-8/BOM,

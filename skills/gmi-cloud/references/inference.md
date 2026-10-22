@@ -20,5 +20,5 @@ cannot follow redirects. Errors redact the current key and credential fields.
 Do not echo keys from shell environment tools.
 
 Source: [GMI LLM reference](https://docs.gmicloud.ai/inference-engine/api-reference/llm-api-reference),
-consulted 2026-10-23. Check current docs when models reject parameters. Live API
-calls were not run when this skill was built.
+consulted 2026-10-23. Check current docs when models reject parameters. Read-only model discovery was verified on macOS with a trusted CA bundle.
+Live text generation remains unverified.

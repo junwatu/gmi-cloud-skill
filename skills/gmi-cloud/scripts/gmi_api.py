@@ -11,12 +11,13 @@ from pathlib import Path
 import random
 import re
 import socket
+import ssl
 import sys
 import tempfile
 import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode, urlsplit
-from urllib.request import Request, HTTPRedirectHandler, build_opener
+from urllib.request import Request, HTTPRedirectHandler, HTTPSHandler, build_opener
 from uuid import uuid4
 
 INFERENCE = 'https://api.gmi-serving.com/v1'
@@ -69,9 +70,41 @@ def emit(value):
 
 
 class Error(Exception):
-    def __init__(self, message, *, transient=False, retry_after=0, hint=None):
+    def __init__(self, message, *, transient=False, retry_after=0, hint=None, code=None):
         super().__init__(message)
         self.transient, self.retry_after, self.hint = transient, retry_after, hint
+        self.code = code
+
+
+def tls_context():
+    """Verify certificates/hostnames using configured or Python default trust."""
+    bundle = os.environ.get('GMI_CA_BUNDLE', '').strip()
+    try:
+        return ssl.create_default_context(cafile=str(Path(bundle).expanduser()) if bundle else None)
+    except (OSError, ssl.SSLError):
+        raise Error('Cannot load trusted CA certificates. Check GMI_CA_BUNDLE, '
+                    'SSL_CERT_FILE and SSL_CERT_DIR; see references/portability.md#tls-certificates.',
+                    code='TLS_CA_CONFIG') from None
+
+
+def tls_error():
+    return Error('TLS certificate verification failed. Repair the Python/OS CA setup '
+                 'or set GMI_CA_BUNDLE to a trusted PEM CA bundle. On python.org macOS '
+                 'installs, run the matching Install Certificates.command. '
+                 'See references/portability.md#tls-certificates. Verification remains enabled.',
+                 code='TLS_CERTIFICATE_VERIFY_FAILED')
+
+
+def tls_diagnostics():
+    context = tls_context()
+    paths = ssl.get_default_verify_paths()
+    return {'certificate_verification': context.verify_mode == ssl.CERT_REQUIRED,
+            'hostname_verification': context.check_hostname,
+            'ca_source': 'GMI_CA_BUNDLE' if os.environ.get('GMI_CA_BUNDLE', '').strip() else 'Python default trust',
+            'loaded_ca_count': context.cert_store_stats()['x509_ca'],
+            'default_cafile': paths.cafile, 'default_capath': paths.capath,
+            'ssl_cert_file_configured': bool(os.environ.get('SSL_CERT_FILE')),
+            'ssl_cert_dir_configured': bool(os.environ.get('SSL_CERT_DIR'))}
 
 
 def secure_url(url):
@@ -108,7 +141,7 @@ class API:
         self.key = os.environ.get('GMI_API_KEY', '').strip()
         if not self.key:
             raise Error('Set GMI_API_KEY in the execution environment; do not paste it into chat.')
-        self.opener = build_opener(NoRedirect())
+        self.opener = build_opener(NoRedirect(), HTTPSHandler(context=tls_context()))
 
     def call(self, method, base, path, body=None, timeout=30):
         headers = {'Authorization': 'Bearer ' + self.key, 'User-Agent': 'gmi-skill/1.0',
@@ -145,7 +178,12 @@ class API:
             raise Error(f'GMI HTTP {exc.code}' + ('; daily quota reached.' if daily else '.'),
                         transient=exc.code in TRANSIENT and not daily,
                         retry_after=retry_seconds(exc.headers), hint=hint) from None
-        except (URLError, TimeoutError, socket.timeout, ConnectionError, OSError, HTTPException):
+        except (ssl.SSLCertVerificationError, URLError) as exc:
+            reason = exc.reason if isinstance(exc, URLError) else exc
+            if isinstance(reason, ssl.SSLCertVerificationError):
+                raise tls_error() from None
+            raise Error('GMI connection failed or timed out.', transient=True) from None
+        except (TimeoutError, socket.timeout, ConnectionError, OSError, HTTPException):
             raise Error('GMI connection failed or timed out.', transient=True) from None
         except (ValueError, UnicodeError):
             raise Error('GMI returned invalid JSON.') from None
@@ -372,7 +410,7 @@ def download(store, job, output, max_bytes, opener=None):
         raise Error('Successful job has no recognized artifact URLs; inspect its outcome.')
     directory = Path(output).resolve()
     directory.mkdir(parents=True, exist_ok=True)
-    opener = opener or build_opener(ArtifactRedirect())
+    opener = opener or build_opener(ArtifactRedirect(), HTTPSHandler(context=tls_context()))
     saved = job.setdefault('downloads', {})
     failures = []
     for index, url in enumerate(urls, 1):
@@ -409,8 +447,12 @@ def download(store, job, output, max_bytes, opener=None):
             saved[str(path)] = {'bytes': count, 'sha256': sha.hexdigest()}
             store.save(job)
         except (Error, OSError, ValueError, URLError, HTTPException) as exc:
+            reason = exc.reason if isinstance(exc, URLError) else exc
+            if isinstance(reason, ssl.SSLCertVerificationError):
+                exc = tls_error()
             # URLError text may contain a signed URL; report only the artifact index.
-            failures.append({'artifact': index, 'error': str(exc) if isinstance(exc, Error) else 'Artifact download failed.'})
+            failures.append({'artifact': index, 'error': str(exc) if isinstance(exc, Error) else 'Artifact download failed.',
+                             'code': getattr(exc, 'code', None)})
         finally:
             if temp and os.path.exists(temp):
                 os.unlink(temp)
@@ -473,6 +515,7 @@ def main(argv=None):
                   'state_dir': str(store.root),
                   'credentials_available': bool(os.environ.get('GMI_API_KEY', '').strip()),
                   'org_id_available': bool(os.environ.get('GMI_ORG_ID', '').strip()),
+                  'tls': tls_diagnostics(),
                   'state_permissions': 'Windows inherited ACLs' if os.name == 'nt' else 'POSIX private modes'})
             return 0
         if args.command == 'jobs':
@@ -535,7 +578,7 @@ def main(argv=None):
     except (Error, OSError, ValueError, TypeError, KeyError) as exc:
         message = str(exc) if isinstance(exc, Error) else 'Invalid local input/state or file access failed.'
         emit({'error': message, 'job_id': job.get('job_id') if job else getattr(args, 'job_id', None),
-              'request_id': job.get('request_id') if job else None})
+              'request_id': job.get('request_id') if job else None, 'code': getattr(exc, 'code', None)})
         return 1
 
 

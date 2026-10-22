@@ -57,6 +57,10 @@ The examples use `python3`; on Windows prefer `py -3` or a verified Python 3.10+
 `python` executable. Quote the helper's absolute path when it contains spaces.
 Run `doctor` to check runtime, state location, and whether credentials are present
 without making an API request or printing their values.
+For `TLS_CERTIFICATE_VERIFY_FAILED` or `TLS_CA_CONFIG`, follow
+[TLS setup](references/portability.md#tls-certificates). Repair trust configuration
+before retrying. Never disable certificate verification or replay an uncertain
+paid submission to work around a certificate problem.
 
 Local state uses the OS's native user-data location; override with
 `GMI_SKILL_STATE_DIR` or `--state-dir` in restricted environments. Existing legacy

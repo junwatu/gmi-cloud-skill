@@ -1,6 +1,6 @@
 # GMI Cloud skill — Public Beta
 
-**Status: Public beta (`v0.1.0-beta.2`).** APIs and workflows may change.
+**Status: Public beta (`v0.1.0-beta.3`).** APIs and workflows may change.
 Report reproducible issues in the [issue tracker](https://github.com/junwatu/gmi-cloud-skill/issues).
 
 Use GMI Cloud from Codex for model discovery, text inference, and image, video,
@@ -25,11 +25,12 @@ access are not required. Optional `GMI_ORG_ID` selects an organization.
 
 The helper is designed for Windows, macOS, and Linux. It has been tested natively
 on macOS; Windows/Linux path branches have simulated coverage. Native Windows and
-Linux runs and live GMI generation remain unverified.
+Linux runs and live GMI generation remain unverified. Read-only model discovery
+was verified on macOS using a trusted CA bundle.
 
 ## Install in Codex
 
-1. Download [`gmi-cloud.zip`](https://github.com/junwatu/gmi-cloud-skill/releases/tag/v0.1.0-beta.2) and extract it. The resulting `gmi-cloud` folder must
+1. Download [`gmi-cloud.zip`](https://github.com/junwatu/gmi-cloud-skill/releases/tag/v0.1.0-beta.3) and extract it. The resulting `gmi-cloud` folder must
    contain `SKILL.md`, `scripts/`, `references/`, and `agents/`.
 2. Copy the **whole folder**, not only `SKILL.md`, into your user skills folder:
 
@@ -78,7 +79,7 @@ Ask Codex to install the public beta using the built-in skill installer:
 
 ```text
 Use $skill-installer to install gmi-cloud from
-https://github.com/junwatu/gmi-cloud-skill/tree/v0.1.0-beta.2/skills/gmi-cloud
+https://github.com/junwatu/gmi-cloud-skill/tree/v0.1.0-beta.3/skills/gmi-cloud
 ```
 
 The URL points directly to the skill folder and pins the beta release.
@@ -165,8 +166,27 @@ py -3 "$HOME\.agents\skills\gmi-cloud\scripts\gmi_api.py" doctor
 
 If `py` is unavailable, use a verified Python 3.10+ `python` executable.
 `doctor` makes no network request and prints no credential values. Check for
-`"credentials_available": true`. This confirms availability, not whether GMI
+`"credentials_available": true`. Also review the `tls` diagnostics. This confirms availability, not whether GMI
 accepts the key. Ask Codex to use `$gmi-cloud` to list models to verify API access.
+
+## Certificate setup
+
+The helper uses Python's trusted certificates and keeps TLS verification enabled.
+If setup fails with `TLS_CERTIFICATE_VERIFY_FAILED`, follow the
+[platform-specific certificate guide](references/portability.md#tls-certificates):
+
+- **macOS, python.org installation:** run the matching `Install Certificates.command`.
+- **Linux:** install/update the distribution's `ca-certificates` package.
+- **Windows:** check Windows/Python trust and corporate proxy certificates.
+
+For an approved PEM CA bundle, set `GMI_CA_BUNDLE` to its absolute file path.
+Python's standard `SSL_CERT_FILE` and `SSL_CERT_DIR` settings are also supported
+when `GMI_CA_BUNDLE` is unset. This applies to API calls and artifact downloads.
+Use only trusted bundles; custom bundles replace the helper's default trust roots.
+The helper never disables verification or changes the machine's trust store.
+
+`doctor` now reports TLS settings, CA count and default trust paths. An offline
+check alone does not prove connectivity; retry model listing after repairing TLS.
 
 ## Use the skill
 
@@ -226,7 +246,7 @@ Run from the skill folder:
 python3 -m unittest discover -s scripts -p 'test_*.py'
 ```
 
-On Windows, use `py -3`. The 34 offline tests use a local HTTP fixture and require
+On Windows, use `py -3`. The 40 offline tests use a local HTTP fixture and require
 no GMI key or credits. They cover async recovery, failures, retries, download
 integrity, credential redaction, and portability behavior.
 
