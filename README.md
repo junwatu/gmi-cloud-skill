@@ -42,8 +42,10 @@ not cancel remote work; there is no background monitoring daemon.
 ## Beta verification
 
 34 offline tests pass locally on macOS with Python 3.13. Windows/Linux path logic
-has simulated coverage; the CI matrix runs the suite natively on Windows,
-macOS, and Linux with Python 3.10 and 3.13. Consult the latest CI run for results.
+has simulated coverage. CI is configured for Windows, macOS, and Linux with
+Python 3.10 and 3.13, but the initial jobs could not start because GitHub reported
+an account billing lock. No native Windows/Linux CI results are available yet.
+See the [initial CI run](https://github.com/junwatu/gmi-cloud-skill/actions/runs/39844807249).
 Live GMI requests, provisioning, and media uploads have not been verified here.
 The helper implements inference and media, with compute guidance as reference only.
 
