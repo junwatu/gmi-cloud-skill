@@ -1,4 +1,4 @@
-# Return after acceptance; schedule variable follow-ups
+# Return after acceptance; offer optional variable follow-ups
 
 For approved media work, the default is to submit once and return after GMI
 acknowledges it. Do not chain `wait` or keep the chat turn alive with sleeps.
@@ -6,10 +6,26 @@ The initial POST still needs an HTTP response to establish the request ID;
 synchronous models may finish inside that response. A request without a
 confirmed ID must be reconciled, not automatically resubmitted or monitored.
 
+## Offer monitoring; do not enable it by default
+
+For a pending job, report the confirmed ID and manual status command, then offer
+automatic checking. No reply, declining, or only approving generation means no
+schedule is created. An offer can say:
+
+> The job is submitted. You can check it manually, or I can enable automatic
+> checks at variable 2–5 minute intervals for up to one hour from submission.
+> Scheduled checks consume host usage; their cost is unknown unless your plan
+> provides a confirmed rate. Would you like automatic checks enabled?
+
+Tailor the disclosure to actual known pricing instead of always claiming it is
+unknown. Keep the offer concise. If the user already explicitly opted in and
+approved that monitoring scope/cost with the generation plan, do not ask again.
+Terminal jobs should be delivered/reported directly without a monitor offer.
+
 ## Approval includes monitoring scope
 
-Before spending, show the model/payload/output count and the generation estimate,
-plus the follow-up plan: variable checks within 2–5 minutes, a default one-hour
+Before spending, show the model/payload/output count and the generation estimate.
+Only if monitoring is requested, add its follow-up plan: variable checks within 2–5 minutes, a default one-hour
 monitoring window from submission, output folder, and completion-only reporting.
 Scheduled agent wakes consume host usage and may incur charges under the user's
 plan. Disclose the estimated monitoring cost if known, or that it is unknown,
@@ -19,7 +35,8 @@ do not add potentially charged monitoring without its approval.
 
 ## Prepare the offline handoff
 
-After an approved submission returns pending, run:
+Only after scheduling opt-in and any required spending approval for a confirmed
+pending job, run:
 
 ```sh
 python3 <skill-dir>/scripts/gmi_api.py follow-up JOB_ID --out OUTPUT_DIR
@@ -51,6 +68,9 @@ The final scheduler wake can occur after the deadline, but it must stop without
 another API lookup. Sleeping machines and host scheduling delays affect timing.
 
 ## Create the actual schedule using the host
+
+First verify explicit scheduling opt-in and applicable spending approval. Merely
+producing or inspecting the offline plan is not authorization to create a monitor.
 
 1. Discover the available native scheduling capability and its current schema.
    In Codex desktop with `codex-app-tools`, use `automation_update` and a heartbeat
@@ -110,4 +130,5 @@ manual `status` command. Do not silently start a blocking `wait`. Use bounded
 Default planning and stop behavior are covered by local fixture tests. A live
 monitor was not created while developing this update because no approved real
 media job was submitted. No scheduler or automation is installed on importing or
-installing this skill; scheduling happens per approved pending job.
+installing this skill; scheduling happens only for an explicitly opted-in pending
+job after any required spending approval.

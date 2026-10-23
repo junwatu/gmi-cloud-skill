@@ -38,8 +38,9 @@ Follow [Approval before spending](../SKILL.md#approval-before-spending) before
 `submit`. Prepare the exact model and payload, number of jobs and outputs, USD
 estimate and calculation from current price units/quantities. Do not assume one
 request always produces one output. Disclose unknown pricing or variable charges
-and wait for explicit approval. Include the monitoring window, variable interval
-and any known or unknown host usage cost in that approval. A generation request
+and wait for explicit approval. If the user opts into monitoring, include its
+window, variable interval and any known or unknown host usage cost in approval.
+Generation approval alone does not enable monitoring. A generation request
 only authorizes preparation.
 Any change increasing the approved cost requires new approval. Submit only the
 approved work, once; uncertainty after submission is handled by reconciliation.
@@ -63,11 +64,13 @@ without a local process. Choose a unique local `--job-id` or omit it for a UUID.
 Reusing a local ID refuses a second submission. Another ID can submit another
 billed job; there is no global deduplication.
 
-By default, return to the user after acceptance and use the native host scheduler
-with the offline `follow-up` plan for variable 2–5 minute checks. See
-[scheduled follow-up](follow-up.md). Do not chain a blocking wait. The helper
-returns a plan; the host must confirm the actual schedule. If scheduling is
-unavailable, report that and leave a manual resume command.
+By default, return after acceptance with the saved ID and manual status command.
+For pending jobs, offer variable 2–5 minute automatic checks as an option; do not
+create a monitor without explicit scheduling opt-in and required spending approval.
+Use the offline `follow-up` plan and native host scheduler only after that opt-in.
+See [optional scheduled follow-up](follow-up.md). Do not chain a blocking wait.
+The helper returns a plan; the host must confirm the actual schedule. If scheduling
+is unavailable, report that and leave the manual resume command.
 
 A private intent record is created before POST. The accepted request ID is saved
 before reporting status. Immediate synchronous success/failure uses the same

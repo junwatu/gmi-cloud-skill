@@ -5,7 +5,7 @@
 A Codex skill for GMI Cloud model discovery from official documentation and live
 account catalogs, text inference, and resumable image, video, and audio generation. Written in Python using only the standard library.
 
-**Version: `v0.1.0-beta.8`.** Expect changes while API behavior and platform support
+**Version: `v0.1.0-beta.9`.** Expect changes while API behavior and platform support
 are validated. This is an independent community project, not an official GMI Cloud product.
 
 ## Install
@@ -14,11 +14,11 @@ Ask Codex:
 
 ```text
 Use $skill-installer to install gmi-cloud from
-https://github.com/junwatu/gmi-cloud-skill/tree/v0.1.0-beta.8/skills/gmi-cloud
+https://github.com/junwatu/gmi-cloud-skill/tree/v0.1.0-beta.9/skills/gmi-cloud
 ```
 
 Or download `gmi-cloud.zip` from the
-[beta release](https://github.com/junwatu/gmi-cloud-skill/releases/tag/v0.1.0-beta.8)
+[beta release](https://github.com/junwatu/gmi-cloud-skill/releases/tag/v0.1.0-beta.9)
 and follow the [manual installation guide](skills/gmi-cloud/README.md#install-in-codex).
 
 ## Approval before spending
@@ -48,10 +48,16 @@ This is a skill instruction for the agent. Direct manual helper commands do not
 implement an interactive approval gate; run billed commands only after reviewing
 and approving the work yourself.
 
-## Submit and return; variable scheduled checks
+## Submit and return; optional automatic checks
 
 After spending approval, the skill submits a media job once and returns after
-GMI accepts it. It uses the host's native same-chat scheduler for follow-up:
+GMI accepts it. For a pending job, it offers automatic checking as an optional
+next step and provides the ID plus a manual status command. **No schedule is
+created unless you explicitly opt in.** Approving generation alone, declining
+the offer, or not replying does not enable monitoring.
+
+If you opt in and approve any applicable monitoring cost, it uses the host's
+native same-chat scheduler:
 
 - Choose a new delay within **2–5 minutes** after each check, based on observed
   status, elapsed job age and jitter; don't leave a fixed recurring interval.

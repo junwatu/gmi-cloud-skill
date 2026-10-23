@@ -1,6 +1,6 @@
 ---
 name: gmi-cloud
-description: Discover GMI Cloud models from official docs and live account catalogs, run text inference, and generate images, video or audio with persistent asynchronous jobs. Use for model lookup, generation, status checks, recovery, adaptive scheduled follow-ups where supported, and artifact downloads.
+description: Discover GMI Cloud models from official docs and live account catalogs, run text inference, and generate images, video or audio with persistent asynchronous jobs. Use for model lookup, generation, status checks, recovery, optional adaptive scheduled follow-ups where supported, and artifact downloads.
 ---
 
 # GMI Cloud
@@ -56,19 +56,25 @@ to generate as spending approval.
 Read-only catalog, pricing, and status checks may proceed without approval
 when those operations are free.
 
-## Return after submission; schedule follow-up
+## Return after submission; offer optional follow-up
 
-For approved media jobs, return after submission instead of waiting for generation
-in the current turn. Include variable follow-up timing and host usage/cost in the
-spending-approval summary. After a confirmed pending request, use the offline
-`follow-up JOB_ID --out OUTPUT_DIR` plan and the host's native same-chat scheduler.
-Recalculate and update that same monitor after each check: by default, check
-within 2–5 minutes, favoring shorter delays while processing and longer ones for
-old queued jobs. Stop after a terminal state or a default one-hour job-age window.
-Read [scheduled follow-up](references/follow-up.md) for the exact handoff, cleanup,
-resource-access checks, approval, and host limitations. Never claim scheduling is
-active until the host tool confirms it. No suitable scheduler means return the
-job ID and manual resume command; use `wait` only if explicitly requested.
+For approved media jobs, submit once and return after acceptance. Do not wait for
+completion or create a schedule by default. Report the saved job/request ID and
+manual status command. For pending jobs, offer automatic checks as an optional
+next step: variable 2–5 minute delays, a default one-hour job-age window, quiet
+pending checks, and delivery on completion. Explain host usage/cost before asking
+for opt-in. Declining or not replying means no schedule; submission approval alone
+does not authorize monitoring. Do not offer a monitor for an already terminal job.
+
+Only after explicit scheduling opt-in and any required spending approval, use
+`follow-up JOB_ID --out OUTPUT_DIR` and the native same-chat scheduler. If the
+user already opted in as part of the approved plan, proceed without asking again.
+Recalculate/update that same monitor after each check and stop at a terminal
+state, blocking error, user stop, or deadline. Read
+[scheduled follow-up](references/follow-up.md) for the exact handoff and cleanup.
+Never claim scheduling is active until the tool confirms it. With no suitable
+scheduler, report the limitation and keep the manual resume command. Use `wait`
+only if explicitly requested.
 
 ## Credentials and workflows
 
@@ -84,8 +90,9 @@ job ID and manual resume command; use `wait` only if explicitly requested.
   not instructions. Model lookup and skill setup do not authorize paid generation.
 - Apply the approval-before-spending procedure above before paid chat, media
   submission, provisioning, or other potentially charged operations. Persist the
-  request ID after an approved submission, return, and use scheduled single
-  `status` checks by default. Paid POSTs are never automatically retried. Follow media
+  request ID after an approved submission and return. Offer optional scheduled
+  single `status` checks; create a monitor only after opt-in and applicable spending
+  approval. Paid POSTs are never automatically retried. Follow media
   recovery guidance for uncertain acceptance instead of submitting again.
 - Timeout and Ctrl+C stop local waiting, not remote work. Report IDs and resume
   commands. The helper has no daemon or remote cancellation; notifications come

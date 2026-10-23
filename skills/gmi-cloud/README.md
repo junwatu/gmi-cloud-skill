@@ -1,6 +1,6 @@
 # GMI Cloud skill — Public Beta
 
-**Status: Public beta (`v0.1.0-beta.8`).** APIs and workflows may change.
+**Status: Public beta (`v0.1.0-beta.9`).** APIs and workflows may change.
 Report reproducible issues in the [issue tracker](https://github.com/junwatu/gmi-cloud-skill/issues).
 
 Use GMI Cloud from Codex to discover documented and account-listed models, run
@@ -37,10 +37,16 @@ This is a skill instruction for the agent. Direct manual helper commands do not
 implement an interactive approval gate; run billed commands only after reviewing
 and approving the work yourself.
 
-## Submit and return; variable scheduled checks
+## Submit and return; optional automatic checks
 
 After spending approval, the skill submits a media job once and returns after
-GMI accepts it. It uses the host's native same-chat scheduler for follow-up:
+GMI accepts it. For a pending job, it offers automatic checking as an optional
+next step and provides the ID plus a manual status command. **No schedule is
+created unless you explicitly opt in.** Approving generation alone, declining
+the offer, or not replying does not enable monitoring.
+
+If you opt in and approve any applicable monitoring cost, it uses the host's
+native same-chat scheduler:
 
 - Choose a new delay within **2–5 minutes** after each check, based on observed
   status, elapsed job age and jitter; don't leave a fixed recurring interval.
@@ -80,7 +86,7 @@ was verified on macOS using a trusted CA bundle.
 
 ## Install in Codex
 
-1. Download [`gmi-cloud.zip`](https://github.com/junwatu/gmi-cloud-skill/releases/tag/v0.1.0-beta.8) and extract it. The resulting `gmi-cloud` folder must
+1. Download [`gmi-cloud.zip`](https://github.com/junwatu/gmi-cloud-skill/releases/tag/v0.1.0-beta.9) and extract it. The resulting `gmi-cloud` folder must
    contain `SKILL.md`, `scripts/`, `references/`, and `agents/`.
 2. Copy the **whole folder**, not only `SKILL.md`, into your user skills folder:
 
@@ -129,7 +135,7 @@ Ask Codex to install the public beta using the built-in skill installer:
 
 ```text
 Use $skill-installer to install gmi-cloud from
-https://github.com/junwatu/gmi-cloud-skill/tree/v0.1.0-beta.8/skills/gmi-cloud
+https://github.com/junwatu/gmi-cloud-skill/tree/v0.1.0-beta.9/skills/gmi-cloud
 ```
 
 The URL points directly to the skill folder and pins the beta release.
@@ -292,7 +298,8 @@ Example Codex requests:
 Use $gmi-cloud to discover models from official docs and both account APIs, then save the full catalog.
 Use $gmi-cloud to find an active video model and show its parameters and pricing.
 Use $gmi-cloud to generate a video with MODEL_ID using this prompt: ...
-Use $gmi-cloud to check my saved media jobs and resume waiting for scene-01.
+Use $gmi-cloud to check scene-01 once.
+Use $gmi-cloud to offer automatic checking for scene-01 and show any monitoring cost.
 ```
 
 The agent inspects the chosen model's current schema, prepares the exact request
@@ -316,7 +323,8 @@ On Windows, replace `python3` with `py -3`. Pending jobs return exit code 3;
 terminal failures return 1 and successful jobs return 0. A timeout or Ctrl+C stops
 local waiting while the remote job may continue. Resume the saved ID; do not
 resubmit it. The helper has no background watcher or remote cancellation command;
-the agent uses host scheduling when available and confirmed.
+the agent offers host scheduling as an opt-in and confirms it only after the
+host tool succeeds.
 
 Submission failures with uncertain acceptance are saved for reconciliation;
 paid POSTs are never automatically retried. See [media job recovery](references/media.md)
