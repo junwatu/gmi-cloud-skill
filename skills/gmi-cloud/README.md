@@ -1,6 +1,6 @@
 # GMI Cloud skill — Public Beta
 
-**Status: Public beta (`v0.1.0-beta.7`).** APIs and workflows may change.
+**Status: Public beta (`v0.1.0-beta.8`).** APIs and workflows may change.
 Report reproducible issues in the [issue tracker](https://github.com/junwatu/gmi-cloud-skill/issues).
 
 Use GMI Cloud from Codex to discover documented and account-listed models, run
@@ -37,6 +37,28 @@ This is a skill instruction for the agent. Direct manual helper commands do not
 implement an interactive approval gate; run billed commands only after reviewing
 and approving the work yourself.
 
+## Submit and return; variable scheduled checks
+
+After spending approval, the skill submits a media job once and returns after
+GMI accepts it. It uses the host's native same-chat scheduler for follow-up:
+
+- Choose a new delay within **2–5 minutes** after each check, based on observed
+  status, elapsed job age and jitter; don't leave a fixed recurring interval.
+- Check sooner while processing, longer for an old queued job.
+- Stay quiet while pending; download/deliver on success and stop the monitor.
+- Stop on terminal failure, errors requiring input, user stop, or a default
+  one-hour job-age deadline. Monitoring does not cancel the remote GMI job.
+
+Scheduling needs a compatible host with minute-based follow-ups and access to
+Python, credentials, TLS settings, job files and the output folder. Native
+scheduled checks consume host usage and may incur charges; their scope and known
+or unknown cost are included in the approval summary. If scheduling is unavailable
+or cannot change the next delay, the skill says so and gives a manual status
+command. It does not silently block or create GitHub Actions/OS cron jobs.
+
+The Python helper prepares the handoff but does not install a scheduler. See
+[scheduled follow-up](references/follow-up.md) for implementation, platform limits and verification status.
+
 ## Requirements
 
 | Requirement | Details |
@@ -58,7 +80,7 @@ was verified on macOS using a trusted CA bundle.
 
 ## Install in Codex
 
-1. Download [`gmi-cloud.zip`](https://github.com/junwatu/gmi-cloud-skill/releases/tag/v0.1.0-beta.7) and extract it. The resulting `gmi-cloud` folder must
+1. Download [`gmi-cloud.zip`](https://github.com/junwatu/gmi-cloud-skill/releases/tag/v0.1.0-beta.8) and extract it. The resulting `gmi-cloud` folder must
    contain `SKILL.md`, `scripts/`, `references/`, and `agents/`.
 2. Copy the **whole folder**, not only `SKILL.md`, into your user skills folder:
 
@@ -107,7 +129,7 @@ Ask Codex to install the public beta using the built-in skill installer:
 
 ```text
 Use $skill-installer to install gmi-cloud from
-https://github.com/junwatu/gmi-cloud-skill/tree/v0.1.0-beta.7/skills/gmi-cloud
+https://github.com/junwatu/gmi-cloud-skill/tree/v0.1.0-beta.8/skills/gmi-cloud
 ```
 
 The URL points directly to the skill folder and pins the beta release.
@@ -285,7 +307,7 @@ the manual helper submits directly without an approval prompt:
 ```sh
 python3 scripts/gmi_api.py model MODEL_ID
 python3 scripts/gmi_api.py submit --model MODEL_ID --payload-file payload.json --job-id scene-01
-python3 scripts/gmi_api.py wait scene-01 --timeout 45
+python3 scripts/gmi_api.py follow-up scene-01 --out ./generated-media
 python3 scripts/gmi_api.py status scene-01
 python3 scripts/gmi_api.py download scene-01 --out ./generated-media
 ```
@@ -293,7 +315,8 @@ python3 scripts/gmi_api.py download scene-01 --out ./generated-media
 On Windows, replace `python3` with `py -3`. Pending jobs return exit code 3;
 terminal failures return 1 and successful jobs return 0. A timeout or Ctrl+C stops
 local waiting while the remote job may continue. Resume the saved ID; do not
-resubmit it. There is no background watcher or remote cancellation command.
+resubmit it. The helper has no background watcher or remote cancellation command;
+the agent uses host scheduling when available and confirmed.
 
 Submission failures with uncertain acceptance are saved for reconciliation;
 paid POSTs are never automatically retried. See [media job recovery](references/media.md)
@@ -325,7 +348,7 @@ Run from the skill folder:
 python3 -m unittest discover -s scripts -p 'test_*.py'
 ```
 
-On Windows, use `py -3`. The 64 offline tests use a local HTTP fixture and require
+On Windows, use `py -3`. The 74 offline tests use a local HTTP fixture and require
 no GMI key or credits. They cover async recovery, failures, retries, download
 integrity, credential redaction, and portability behavior.
 

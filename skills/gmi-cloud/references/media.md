@@ -38,7 +38,9 @@ Follow [Approval before spending](../SKILL.md#approval-before-spending) before
 `submit`. Prepare the exact model and payload, number of jobs and outputs, USD
 estimate and calculation from current price units/quantities. Do not assume one
 request always produces one output. Disclose unknown pricing or variable charges
-and wait for explicit approval. A generation request only authorizes preparation.
+and wait for explicit approval. Include the monitoring window, variable interval
+and any known or unknown host usage cost in that approval. A generation request
+only authorizes preparation.
 Any change increasing the approved cost requires new approval. Submit only the
 approved work, once; uncertainty after submission is handled by reconciliation.
 
@@ -50,7 +52,7 @@ complete the approval workflow before invoking it.
 ```sh
 HELPER submit --model MODEL_ID --payload-file payload.json --job-id scene-01
 HELPER status scene-01
-HELPER wait scene-01 --timeout 45
+HELPER follow-up scene-01 --out ./outputs/scene-01
 HELPER download scene-01 --out ./outputs/scene-01
 HELPER jobs
 HELPER requests --limit 20
@@ -60,6 +62,12 @@ HELPER requests --limit 20
 without a local process. Choose a unique local `--job-id` or omit it for a UUID.
 Reusing a local ID refuses a second submission. Another ID can submit another
 billed job; there is no global deduplication.
+
+By default, return to the user after acceptance and use the native host scheduler
+with the offline `follow-up` plan for variable 2–5 minute checks. See
+[scheduled follow-up](follow-up.md). Do not chain a blocking wait. The helper
+returns a plan; the host must confirm the actual schedule. If scheduling is
+unavailable, report that and leave a manual resume command.
 
 A private intent record is created before POST. The accepted request ID is saved
 before reporting status. Immediate synchronous success/failure uses the same
@@ -72,7 +80,9 @@ also has a socket timeout bounded by the remaining budget; a slow streaming
 response can exceed that budget, so this is not a hard process deadline. HTTP 429 respects
 Retry-After within that budget; daily quotas stop without retry. GET 408/429/
 500/502/503/504 and connection failures can be retried. Authentication, 404,
-malformed responses and unknown statuses stop. No daemon or cancellation exists.
+malformed responses and unknown statuses stop. The helper has no daemon or remote
+cancellation. `wait` remains an explicit opt-in; native scheduled checks use a
+single `status` call per wake, then recalculate and update the same monitor.
 
 | Exit | Meaning | Action |
 |---|---|---|

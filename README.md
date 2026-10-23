@@ -5,7 +5,7 @@
 A Codex skill for GMI Cloud model discovery from official documentation and live
 account catalogs, text inference, and resumable image, video, and audio generation. Written in Python using only the standard library.
 
-**Version: `v0.1.0-beta.7`.** Expect changes while API behavior and platform support
+**Version: `v0.1.0-beta.8`.** Expect changes while API behavior and platform support
 are validated. This is an independent community project, not an official GMI Cloud product.
 
 ## Install
@@ -14,11 +14,11 @@ Ask Codex:
 
 ```text
 Use $skill-installer to install gmi-cloud from
-https://github.com/junwatu/gmi-cloud-skill/tree/v0.1.0-beta.7/skills/gmi-cloud
+https://github.com/junwatu/gmi-cloud-skill/tree/v0.1.0-beta.8/skills/gmi-cloud
 ```
 
 Or download `gmi-cloud.zip` from the
-[beta release](https://github.com/junwatu/gmi-cloud-skill/releases/tag/v0.1.0-beta.7)
+[beta release](https://github.com/junwatu/gmi-cloud-skill/releases/tag/v0.1.0-beta.8)
 and follow the [manual installation guide](skills/gmi-cloud/README.md#install-in-codex).
 
 ## Approval before spending
@@ -47,6 +47,28 @@ model, parameters, output count and cost estimate (or the disclosed unknown pric
 This is a skill instruction for the agent. Direct manual helper commands do not
 implement an interactive approval gate; run billed commands only after reviewing
 and approving the work yourself.
+
+## Submit and return; variable scheduled checks
+
+After spending approval, the skill submits a media job once and returns after
+GMI accepts it. It uses the host's native same-chat scheduler for follow-up:
+
+- Choose a new delay within **2–5 minutes** after each check, based on observed
+  status, elapsed job age and jitter; don't leave a fixed recurring interval.
+- Check sooner while processing, longer for an old queued job.
+- Stay quiet while pending; download/deliver on success and stop the monitor.
+- Stop on terminal failure, errors requiring input, user stop, or a default
+  one-hour job-age deadline. Monitoring does not cancel the remote GMI job.
+
+Scheduling needs a compatible host with minute-based follow-ups and access to
+Python, credentials, TLS settings, job files and the output folder. Native
+scheduled checks consume host usage and may incur charges; their scope and known
+or unknown cost are included in the approval summary. If scheduling is unavailable
+or cannot change the next delay, the skill says so and gives a manual status
+command. It does not silently block or create GitHub Actions/OS cron jobs.
+
+The Python helper prepares the handoff but does not install a scheduler. See
+[scheduled follow-up](skills/gmi-cloud/references/follow-up.md) for implementation, platform limits and verification status.
 
 ## Requirements
 
@@ -99,7 +121,7 @@ not cancel remote work; there is no background monitoring daemon.
 
 ## Beta verification
 
-64 offline tests pass locally on macOS with Python 3.13. Windows/Linux path logic
+74 offline tests pass locally on macOS with Python 3.13. Windows/Linux path logic
 has simulated coverage; native Windows/Linux testing remains unverified.
 Tests are run manually. This repository has no automatic GitHub Actions workflow.
 Read-only discovery was verified against the official documentation index and

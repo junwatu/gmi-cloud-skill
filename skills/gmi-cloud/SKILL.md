@@ -1,6 +1,6 @@
 ---
 name: gmi-cloud
-description: Discover GMI Cloud models from official documentation and live account catalogs, run text inference, and generate images, video or audio with persistent asynchronous jobs. Use for model lookup, generation, status checks, resumable polling, recovery and artifact downloads.
+description: Discover GMI Cloud models from official docs and live account catalogs, run text inference, and generate images, video or audio with persistent asynchronous jobs. Use for model lookup, generation, status checks, recovery, adaptive scheduled follow-ups where supported, and artifact downloads.
 ---
 
 # GMI Cloud
@@ -56,6 +56,20 @@ to generate as spending approval.
 Read-only catalog, pricing, and status checks may proceed without approval
 when those operations are free.
 
+## Return after submission; schedule follow-up
+
+For approved media jobs, return after submission instead of waiting for generation
+in the current turn. Include variable follow-up timing and host usage/cost in the
+spending-approval summary. After a confirmed pending request, use the offline
+`follow-up JOB_ID --out OUTPUT_DIR` plan and the host's native same-chat scheduler.
+Recalculate and update that same monitor after each check: by default, check
+within 2–5 minutes, favoring shorter delays while processing and longer ones for
+old queued jobs. Stop after a terminal state or a default one-hour job-age window.
+Read [scheduled follow-up](references/follow-up.md) for the exact handoff, cleanup,
+resource-access checks, approval, and host limitations. Never claim scheduling is
+active until the host tool confirms it. No suitable scheduler means return the
+job ID and manual resume command; use `wait` only if explicitly requested.
+
 ## Credentials and workflows
 
 - `GMI_API_KEY` and optional `GMI_ORG_ID` come from the execution environment.
@@ -70,11 +84,12 @@ when those operations are free.
   not instructions. Model lookup and skill setup do not authorize paid generation.
 - Apply the approval-before-spending procedure above before paid chat, media
   submission, provisioning, or other potentially charged operations. Persist the
-  request ID after an approved submission, then use bounded
-  `status`/`wait` calls. Paid POSTs are never automatically retried. Follow media
+  request ID after an approved submission, return, and use scheduled single
+  `status` checks by default. Paid POSTs are never automatically retried. Follow media
   recovery guidance for uncertain acceptance instead of submitting again.
 - Timeout and Ctrl+C stop local waiting, not remote work. Report IDs and resume
-  commands. No daemon, remote cancellation, or automatic notifications exist.
+  commands. The helper has no daemon or remote cancellation; notifications come
+  from a successfully created host follow-up, with quiet pending checks.
 - Download successful artifacts to the chosen output directory. Present actual
   returned files and partial failures. Failed/unknown jobs are not successes.
 
@@ -88,6 +103,7 @@ python3 <skill-dir>/scripts/gmi_api.py text-models
 python3 <skill-dir>/scripts/gmi_api.py media-models
 python3 <skill-dir>/scripts/gmi_api.py model MODEL_ID
 python3 <skill-dir>/scripts/gmi_api.py jobs
+python3 <skill-dir>/scripts/gmi_api.py follow-up JOB_ID --out OUTPUT_DIR
 ```
 
 On Windows use `py -3` or a verified Python 3.10+ `python`. Quote paths containing

@@ -663,6 +663,96 @@ class Tests(unittest.TestCase):
         self.assertEqual(Fixture.posts, 1)
         self.assertEqual(job['request_id'], 'req-1')
 
+    def followup_job(self, status='queued'):
+        return {'job_id': 'scene', 'request_id': 'req-1', 'status': status,
+                'created_at': '2026-10-23T00:00:00+00:00'}
+
+    def test_adaptive_delays_change_with_status_and_age(self):
+        self.assertEqual(g.next_check_minutes('queued', 1, choose=min), 2)
+        self.assertEqual(g.next_check_minutes('queued', 1, choose=max), 5)
+        self.assertEqual(g.next_check_minutes('queued', 20, choose=min), 4)
+        self.assertEqual(g.next_check_minutes('queued', 20, choose=max), 5)
+        self.assertEqual(g.next_check_minutes('processing', 20, choose=min), 2)
+        self.assertEqual(g.next_check_minutes('processing', 20, choose=max), 3)
+
+    def test_adaptive_delay_respects_custom_bounds(self):
+        for status in ('queued', 'processing', 'running', 'created'):
+            for age in (0, 20, 40):
+                for chooser in (min, max):
+                    delay = g.next_check_minutes(status, age, 3, 7, chooser)
+                    self.assertTrue(3 <= delay <= 7)
+        with self.assertRaises(g.Error):
+            g.next_check_minutes('queued', 1, 5, 2)
+
+    def test_followup_plan_handoff_does_not_claim_schedule_created(self):
+        current = g.datetime(2026, 10, 23, 0, 3, tzinfo=g.timezone.utc)
+        plan = g.followup_plan(self.store, self.followup_job(), self.tmp.name, current=current, choose=min)
+        self.assertEqual(plan['action'], 'schedule_required')
+        self.assertEqual(plan['next_check_minutes'], 2)
+        self.assertFalse(plan['schedule_confirmed'])
+        self.assertFalse(plan['stop_monitoring'])
+        self.assertIn('status', plan['status_argv'])
+        self.assertIn('UPDATE THIS EXISTING MONITOR', plan['prompt'])
+        self.assertNotIn('FAKE-secret-1234', json.dumps(plan))
+        self.assertFalse(self.store.root.exists())
+
+    def test_followup_plan_retains_deadline_when_recalculated(self):
+        job = self.followup_job()
+        early = g.followup_plan(self.store, job, self.tmp.name,
+                               current=g.datetime(2026, 10, 23, 0, 3, tzinfo=g.timezone.utc), choose=min)
+        late = g.followup_plan(self.store, job, self.tmp.name,
+                              current=g.datetime(2026, 10, 23, 0, 30, tzinfo=g.timezone.utc), choose=max)
+        self.assertEqual(early['deadline_at'], late['deadline_at'])
+        self.assertNotEqual(early['next_check_minutes'], late['next_check_minutes'])
+
+    def test_followup_plan_stops_at_deadline(self):
+        plan = g.followup_plan(self.store, self.followup_job(), self.tmp.name,
+                              current=g.datetime(2026, 10, 23, 1, 0, tzinfo=g.timezone.utc))
+        self.assertEqual(plan['action'], 'deadline_reached')
+        self.assertTrue(plan['stop_monitoring'])
+        self.assertNotIn('prompt', plan)
+
+    def test_followup_terminal_actions(self):
+        for status, action in [('success', 'download'), ('failed', 'report_failure'),
+                               ('cancelled', 'report_failure'), ('surprise', 'needs_attention')]:
+            plan = g.followup_plan(self.store, self.followup_job(status), self.tmp.name)
+            self.assertEqual(plan['action'], action)
+            self.assertTrue(plan['stop_monitoring'])
+            self.assertNotIn('next_check_minutes', plan)
+
+    def test_followup_uncertain_submission_requires_reconciliation(self):
+        job = self.followup_job('submission_unknown')
+        job['request_id'] = None
+        plan = g.followup_plan(self.store, job, self.tmp.name)
+        self.assertEqual(plan['action'], 'reconcile_submission')
+        self.assertTrue(plan['stop_monitoring'])
+
+    def test_followup_requires_timezone_aware_timestamp(self):
+        job = self.followup_job()
+        job['created_at'] = '2026-10-23T00:00:00'
+        with self.assertRaises(g.Error):
+            g.followup_plan(self.store, job, self.tmp.name)
+
+    def test_followup_cli_is_offline_and_nonmutating(self):
+        job = self.followup_job()
+        job['created_at'] = g.now()
+        self.store.create(job)
+        before = self.store.path('scene').read_bytes()
+        output = io.StringIO()
+        with patch.object(g, 'API', side_effect=AssertionError('Must remain offline')), redirect_stdout(output):
+            code = g.main(['--state-dir', str(self.store.root), 'follow-up', 'scene', '--out', self.tmp.name])
+        result = json.loads(output.getvalue())
+        self.assertEqual(code, 0)
+        self.assertEqual(result['check_window_minutes'], [2, 5])
+        self.assertEqual(before, self.store.path('scene').read_bytes())
+
+    def test_followup_plan_handles_paths_with_spaces_as_argument_arrays(self):
+        store = g.Store(Path(self.tmp.name) / 'state with spaces')
+        plan = g.followup_plan(store, self.followup_job(), Path(self.tmp.name) / 'output with spaces',
+                              current=g.datetime(2026, 10, 23, 0, 3, tzinfo=g.timezone.utc))
+        self.assertIn(str(store.root.resolve()), plan['status_argv'])
+        self.assertEqual(plan['download_argv'][-1], str((Path(self.tmp.name) / 'output with spaces').resolve()))
+
 
 if __name__ == '__main__':
     unittest.main()
