@@ -2,7 +2,7 @@
 
 ![Public beta](https://img.shields.io/badge/status-public%20beta-orange)
 
-A Codex skill for GMI Cloud model discovery from official documentation and live
+An agent skill for GMI Cloud model discovery from official documentation and live
 account catalogs, text inference, and resumable image, video, and audio generation. Written in Python using only the standard library.
 
 **Version: `v0.1.0-beta.9`.** Expect changes while API behavior and platform support
@@ -20,6 +20,47 @@ https://github.com/junwatu/gmi-cloud-skill/tree/v0.1.0-beta.9/skills/gmi-cloud
 Or download `gmi-cloud.zip` from the
 [beta release](https://github.com/junwatu/gmi-cloud-skill/releases/tag/v0.1.0-beta.9)
 and follow the [manual installation guide](skills/gmi-cloud/README.md#install-in-codex).
+
+## Host compatibility
+
+The skill uses `SKILL.md` plus a Python helper. The following hosts document
+support for this layout; this is **format compatibility, not a claim of tested
+execution in every host**.
+
+| Host | Global skill folder | Verification |
+|---|---|---|
+| Codex | `$CODEX_HOME/skills/gmi-cloud/` (default `~/.codex/skills/gmi-cloud/`) | Used locally; helper tests and read-only GMI discovery verified on macOS |
+| [Claude Code](https://code.claude.com/docs/en/skills) | `~/.claude/skills/gmi-cloud/` | Documented format support; host execution untested |
+| [Grok Build/CLI](https://docs.x.ai/build/features/skills-plugins-marketplaces) | `~/.grok/skills/gmi-cloud/` | Documented format support; host execution untested |
+| [Antigravity CLI](https://antigravity.google/docs/skills) | `~/.gemini/antigravity-cli/skills/gmi-cloud/` | Documented format support; host execution untested |
+| [OpenCode](https://opencode.ai/docs/skills) | `~/.config/opencode/skills/gmi-cloud/` | Documented format support; host execution untested |
+
+`~` means your user home directory. Copy the **entire `gmi-cloud` folder**, including
+`scripts/` and `references/`, into one location discovered by your host. Avoid
+installing duplicate copies in multiple discovery paths.
+
+Claude Code and Grok Build/CLI expose `/gmi-cloud`; Antigravity CLI also converts
+skills into slash commands. In OpenCode, ask the agent to load the `gmi-cloud`
+skill. The `$gmi-cloud` examples and `$skill-installer` instructions here target
+Codex. `agents/openai.yaml` is Codex metadata; other hosts use `SKILL.md`.
+
+Grok also documents discovery of Claude Code skills, so an existing
+`~/.claude/skills/gmi-cloud/` installation can serve both. Antigravity CLI and
+OpenCode both support project-local `.agents/skills/gmi-cloud/`; Claude Code's
+project location is `.claude/skills/gmi-cloud/`, and Grok's is `.grok/skills/gmi-cloud/`.
+
+All hosts need Python 3.10+, network access, writable job/output storage, and
+`GMI_API_KEY` in the helper's environment. Launching a CLI from a shell that has
+exported the key passes it to child processes unless the host filters the
+environment. The helper does not read `.zshrc` itself. Claude/Grok web chats and
+remote sessions do not automatically inherit your local shell environment;
+these local CLI instructions do not establish web-app compatibility.
+
+Model discovery, submission, saved async jobs, manual status checks and downloads
+use the same helper. **Optional adaptive scheduled checks require separate host
+capability checks and remain unverified in these other hosts.** The agent must
+use a real compatible scheduler and confirm creation; otherwise it returns the
+manual status command. Skill installation alone does not enable monitoring.
 
 ## Approval before spending
 
@@ -79,7 +120,8 @@ The Python helper prepares the handoff but does not install a scheduler. See
 ## Requirements
 
 - Python 3.10+ with standard-library TLS support; no pip dependencies.
-- Codex with local skill support and permission to execute Python.
+- An agent host with local `SKILL.md` support and permission to execute Python;
+  see [host compatibility](#host-compatibility).
 - `GMI_API_KEY` for account listings and generation; optional `GMI_ORG_ID`.
   Public model documentation can be discovered without a key.
 - Network access to `docs.gmicloud.ai`, GMI API endpoints and artifact hosts, writable local storage,

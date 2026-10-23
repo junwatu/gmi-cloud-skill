@@ -3,7 +3,7 @@
 **Status: Public beta (`v0.1.0-beta.9`).** APIs and workflows may change.
 Report reproducible issues in the [issue tracker](https://github.com/junwatu/gmi-cloud-skill/issues).
 
-Use GMI Cloud from Codex to discover documented and account-listed models, run
+Use GMI Cloud from a compatible local agent host to discover documented and account-listed models, run
 text inference, and create image, video,
 or audio generation. Media jobs are saved locally so you can check their status,
 resume waiting, and download results later.
@@ -69,7 +69,7 @@ The Python helper prepares the handoff but does not install a scheduler. See
 
 | Requirement | Details |
 |---|---|
-| Skill host | Codex with local skill discovery and permission to execute Python |
+| Skill host | Local `SKILL.md` discovery and permission to execute Python; see host compatibility below |
 | Python | Python 3.10 or newer, including standard-library HTTPS/TLS support |
 | Credentials | `GMI_API_KEY` for account API listings and generation; public documentation discovery works without it |
 | Model access | Access to the selected model and sufficient credits/quota for paid calls |
@@ -83,6 +83,47 @@ The helper is designed for Windows, macOS, and Linux. It has been tested nativel
 on macOS; Windows/Linux path branches have simulated coverage. Native Windows and
 Linux runs and live GMI generation remain unverified. Read-only model discovery
 was verified on macOS using a trusted CA bundle.
+
+## Host compatibility
+
+The skill uses `SKILL.md` plus a Python helper. The following hosts document
+support for this layout; this is **format compatibility, not a claim of tested
+execution in every host**.
+
+| Host | Global skill folder | Verification |
+|---|---|---|
+| Codex | `$CODEX_HOME/skills/gmi-cloud/` (default `~/.codex/skills/gmi-cloud/`) | Used locally; helper tests and read-only GMI discovery verified on macOS |
+| [Claude Code](https://code.claude.com/docs/en/skills) | `~/.claude/skills/gmi-cloud/` | Documented format support; host execution untested |
+| [Grok Build/CLI](https://docs.x.ai/build/features/skills-plugins-marketplaces) | `~/.grok/skills/gmi-cloud/` | Documented format support; host execution untested |
+| [Antigravity CLI](https://antigravity.google/docs/skills) | `~/.gemini/antigravity-cli/skills/gmi-cloud/` | Documented format support; host execution untested |
+| [OpenCode](https://opencode.ai/docs/skills) | `~/.config/opencode/skills/gmi-cloud/` | Documented format support; host execution untested |
+
+`~` means your user home directory. Copy the **entire `gmi-cloud` folder**, including
+`scripts/` and `references/`, into one location discovered by your host. Avoid
+installing duplicate copies in multiple discovery paths.
+
+Claude Code and Grok Build/CLI expose `/gmi-cloud`; Antigravity CLI also converts
+skills into slash commands. In OpenCode, ask the agent to load the `gmi-cloud`
+skill. The `$gmi-cloud` examples and `$skill-installer` instructions here target
+Codex. `agents/openai.yaml` is Codex metadata; other hosts use `SKILL.md`.
+
+Grok also documents discovery of Claude Code skills, so an existing
+`~/.claude/skills/gmi-cloud/` installation can serve both. Antigravity CLI and
+OpenCode both support project-local `.agents/skills/gmi-cloud/`; Claude Code's
+project location is `.claude/skills/gmi-cloud/`, and Grok's is `.grok/skills/gmi-cloud/`.
+
+All hosts need Python 3.10+, network access, writable job/output storage, and
+`GMI_API_KEY` in the helper's environment. Launching a CLI from a shell that has
+exported the key passes it to child processes unless the host filters the
+environment. The helper does not read `.zshrc` itself. Claude/Grok web chats and
+remote sessions do not automatically inherit your local shell environment;
+these local CLI instructions do not establish web-app compatibility.
+
+Model discovery, submission, saved async jobs, manual status checks and downloads
+use the same helper. **Optional adaptive scheduled checks require separate host
+capability checks and remain unverified in these other hosts.** The agent must
+use a real compatible scheduler and confirm creation; otherwise it returns the
+manual status command. Skill installation alone does not enable monitoring.
 
 ## Install in Codex
 
@@ -126,8 +167,8 @@ skill files does not remove saved jobs.
 
 These local discovery locations follow the
 [official Codex skill documentation](https://learn.chatgpt.com/docs/build-skills).
-Other skill hosts may have different installation paths and execution permissions;
-this bundle does not claim tested integration with them.
+For other hosts, use the host compatibility table above and the host's own
+permissions. Documented format support does not establish tested integration.
 
 ## Install from GitHub
 
@@ -169,7 +210,7 @@ Codex if it does not appear.
 
 ## Configure credentials
 
-Set `GMI_API_KEY` in the environment available to Codex's Python execution process.
+Set `GMI_API_KEY` in the environment available to your agent host's Python execution process.
 Do not paste the key into chat, include it in a payload file, or commit it.
 
 For a terminal session, enter it without displaying it:
@@ -205,6 +246,8 @@ More details: [cross-platform setup](references/portability.md).
 ## Check your setup
 
 Verify Python is 3.10 or newer, then run the helper from the installed skill folder.
+The paths below use the Codex manual installation location; substitute the actual
+installation path for your host.
 
 macOS / Linux:
 
